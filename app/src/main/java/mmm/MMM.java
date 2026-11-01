@@ -36,9 +36,12 @@ public final class MMM extends JFrame {
   private final Path dataPath;
   private javax.swing.Timer viewerTimer;
   private Piano trial;
+  private final JLabel breadcrumb = Theme.muted("하루 한 마디");
+  private final JButton back = Theme.button("‹ 보관함", () -> guard(this::library));
+  private final Map<String, List<Phrase>> libraryRecords = new HashMap<>();
 
   public MMM(MusicService service, Path dataPath) {
-    super("MMM · 음음음 2.0");
+    super("MMM · 음음음 2.1");
     this.service = service;
     this.dataPath = dataPath;
     this.week = Model.monday(service.today());
@@ -47,18 +50,30 @@ public final class MMM extends JFrame {
     setSize(1180, 850);
     setLocationRelativeTo(null);
     JPanel shell = new JPanel(new BorderLayout());
-    JPanel nav =
+    JPanel nav = new JPanel(new BorderLayout());
+    nav.setBorder(
+        new CompoundBorder(new MatteBorder(0, 0, 1, 0, Theme.LINE), new EmptyBorder(8, 20, 8, 20)));
+    JPanel identity =
         Theme.row(
-            Theme.label("mmm", 30),
-            Theme.button("시작", () -> guard(this::start)),
-            Theme.button("곡 보관함", () -> guard(this::library)),
-            Theme.button("설정·계정", () -> guard(this::settings)),
-            Theme.button("도움말", () -> guard(this::help)),
-            Theme.button("모든 소리 정지", this::stopSound));
-    nav.setBorder(new MatteBorder(0, 0, 1, 0, Theme.LINE));
+            Theme.label("mmm", 25), new JSeparator(SwingConstants.VERTICAL), back, breadcrumb);
+    nav.add(identity);
+    JButton more = Theme.button("메뉴 ···", () -> {});
+    more.addActionListener(
+        e -> {
+          JPopupMenu menu = new JPopupMenu();
+          popup(menu, "시작", () -> guard(this::start));
+          popup(menu, "곡 보관함", () -> guard(this::library));
+          popup(menu, "설정·계정", () -> guard(this::settings));
+          popup(menu, "도움말", () -> guard(this::help));
+          menu.addSeparator();
+          popup(menu, "모든 소리 정지 · Esc", this::stopSound);
+          menu.show(more, 0, more.getHeight());
+        });
+    nav.add(more, BorderLayout.EAST);
     shell.add(nav, BorderLayout.NORTH);
     shell.add(cards);
-    banner.setBorder(new EmptyBorder(10, 20, 10, 20));
+    banner.setFont(Theme.font(11, false));
+    banner.setBorder(new EmptyBorder(7, 24, 7, 24));
     banner.setForeground(Theme.MUTED);
     shell.add(banner, BorderLayout.SOUTH);
     setContentPane(shell);
@@ -100,6 +115,12 @@ public final class MMM extends JFrame {
           return null;
         },
         v -> updateBanner());
+  }
+
+  private void popup(JPopupMenu menu, String text, Runnable action) {
+    JMenuItem item = new JMenuItem(text);
+    item.addActionListener(e -> action.run());
+    menu.add(item);
   }
 
   private void installMenus() {
@@ -192,10 +213,8 @@ public final class MMM extends JFrame {
 
   private void updateBanner() {
     banner.setText(
-        (service.demo
-                ? "시연 모드 · 기준일 " + service.today() + " · 별도 데이터"
-                : "로컬 모드 · 서울 오늘 " + service.today())
-            + "   |   인증·공동 참여는 로컬 모의 · 서버 미연결   |   "
+        (service.demo ? "시연 · " + service.today() : "서울 · " + service.today())
+            + "    ·    이 기기에 저장 · 공동 기능은 로컬 모의    ·    "
             + midi.status());
   }
 
@@ -219,6 +238,24 @@ public final class MMM extends JFrame {
       editor = null;
     }
     screen = id;
+    breadcrumb.setText(
+        switch (id) {
+          case "S04" -> "곡 보관함";
+          case "S05", "S08" -> current == null ? "한 주의 기록" : current.name();
+          case "S06" -> "오늘의 한 마디";
+          case "S07" -> "기록 감상";
+          case "S09" -> "함께 듣기";
+          case "S10" -> "곡 관리";
+          case "S11" -> "악보·출력";
+          case "S12" -> "설정·계정";
+          case "S13" -> "도움말";
+          default -> "하루 한 마디";
+        });
+    back.setVisible(!id.equals("S01") && !id.equals("S04"));
+    for (ActionListener listener : back.getActionListeners()) back.removeActionListener(listener);
+    boolean toWeek = current != null && Set.of("S06", "S07", "S09", "S10", "S11").contains(id);
+    back.setText(toWeek ? "‹ 주간으로" : "‹ 보관함");
+    back.addActionListener(e -> guard(toWeek ? this::week : this::library));
     cards.removeAll();
     cards.add(panel, id);
     ((CardLayout) cards.getLayout()).show(cards, id);
@@ -259,10 +296,10 @@ public final class MMM extends JFrame {
   private void start() {
     JPanel p = Theme.page("S01", "소리로 남기는, 나의 하루.", "잘 연주하지 않아도 괜찮아요. 하루 한 마디, 음…음(音)음.");
     JPanel c = Theme.column();
-    c.add(Box.createVerticalStrut(35));
-    c.add(Theme.label("mmm", 100));
     c.add(Box.createVerticalStrut(20));
-    c.add(Theme.label("먼저, 아무 건반이나 눌러 보세요.", 24));
+    c.add(Theme.label("mmm", 72));
+    c.add(Box.createVerticalStrut(20));
+    c.add(Theme.label("먼저, 아무 건반이나 눌러 보세요.", 22));
     c.add(Box.createVerticalStrut(25));
     trial = new Piano(() -> true, n -> midi.on(n, 0), midi::off);
     trial.setMaximumSize(new Dimension(1000, 140));
@@ -382,7 +419,12 @@ public final class MMM extends JFrame {
       return;
     }
     work(
-        service::songs,
+        () -> {
+          List<Song> songs = service.songs();
+          libraryRecords.clear();
+          for (Song song : songs) libraryRecords.put(song.id(), service.phrases(song.id()));
+          return songs;
+        },
         songs -> {
           JPanel p = Theme.page("S04", "곡 보관함", service.user() + " 님의 소리가 한 주씩 쌓이는 곳");
           JTabbedPane tabs = new JTabbedPane();
@@ -391,7 +433,7 @@ public final class MMM extends JFrame {
           p.add(tabs);
           p.add(
               Theme.row(
-                  Theme.primary("새 곡 만들기", this::createDialog),
+                  Theme.secondary("새 곡 만들기", this::createDialog),
                   Theme.button("초대 코드로 참여", () -> inviteDialog(null))),
               BorderLayout.SOUTH);
           show("S04", p);
@@ -405,7 +447,8 @@ public final class MMM extends JFrame {
     JComboBox<String> sort = new JComboBox<>(new String[] {"이름 오름차순", "이름 내림차순"});
     DefaultListModel<Song> model = new DefaultListModel<>();
     JList<Song> list = new JList<>(model);
-    list.setFixedCellHeight(65);
+    list.setFixedCellHeight(122);
+    list.setCellRenderer(new SongCell(libraryRecords));
     list.setFont(list.getFont().deriveFont(20f));
     Runnable filter =
         () -> {
@@ -438,7 +481,32 @@ public final class MMM extends JFrame {
             });
     sort.addActionListener(e -> filter.run());
     p.add(Theme.row(new JLabel("검색"), search, sort), BorderLayout.NORTH);
-    p.add(new JScrollPane(list));
+    Runnable openSong =
+        () -> {
+          if (list.getSelectedValue() != null) {
+            current = list.getSelectedValue();
+            week = Model.monday(service.today());
+            week();
+          }
+        };
+    list.addMouseListener(
+        new MouseAdapter() {
+          public void mouseClicked(MouseEvent event) {
+            if (event.getClickCount() == 2) openSong.run();
+          }
+        });
+    list.getInputMap().put(KeyStroke.getKeyStroke("ENTER"), "open-song");
+    list.getActionMap()
+        .put(
+            "open-song",
+            new AbstractAction() {
+              public void actionPerformed(ActionEvent e) {
+                openSong.run();
+              }
+            });
+    JScrollPane songsScroll = new JScrollPane(list);
+    songsScroll.setBorder(null);
+    p.add(songsScroll);
     p.add(
         Theme.row(
             Theme.button(
@@ -502,45 +570,58 @@ public final class MMM extends JFrame {
                       }),
                   Theme.button("새로고침", this::week)),
               BorderLayout.NORTH);
-          JPanel weekControls = Theme.column();
-          weekControls.add(body.getComponent(0));
-          weekControls.add(new Transport(this, "주간 재생", () -> playWeek(records)));
-          body.add(weekControls, BorderLayout.NORTH);
-          JPanel grid = new JPanel(new GridLayout(1, 7, 10, 10));
-          String[] dayNames = {"월", "화", "수", "목", "금", "토", "일"};
+          JPanel grid = new JPanel(new GridLayout(1, 7, 10, 0));
+          grid.setPreferredSize(new Dimension(900, 236));
           for (int i = 0; i < 7; i++) {
             LocalDate date = week.plusDays(i);
             Phrase own = find(records, service.user(), date);
-            JPanel cell = Theme.column();
-            cell.setBorder(
-                new CompoundBorder(
-                    new LineBorder(
-                        date.equals(service.today()) ? Theme.ORANGE : Theme.LINE,
-                        date.equals(service.today()) ? 2 : 1),
-                    new EmptyBorder(14, 8, 14, 8)));
-            cell.add(Theme.label(dayNames[i], 20));
-            cell.add(new JLabel(date.getMonthValue() + "/" + date.getDayOfMonth()));
-            cell.add(Box.createVerticalStrut(20));
-            cell.add(Theme.label(own == null ? "○" : "●", 40));
-            cell.add(new JLabel(own == null ? "쉼 한 마디" : own.notes().size() + "개의 소리"));
-            JButton open =
-                Theme.button(
-                    date.equals(service.today()) ? "오늘 편집" : "감상",
+            grid.add(
+                new DayCard(
+                    date,
+                    own,
+                    service.today(),
                     () -> {
                       if (date.equals(service.today())) edit(own, date);
                       else detail(own, date, service.user());
-                    });
-            open.setEnabled(!date.isAfter(service.today()));
-            open.setToolTipText(
-                date.isAfter(service.today()) ? "미래 날짜는 열 수 없습니다." : "날짜 정책: 서울 기준");
-            cell.add(Box.createVerticalStrut(15));
-            cell.add(open);
-            if (own != null)
-              cell.add(Theme.button("저장본 감상", () -> detail(own, date, service.user())));
-            grid.add(cell);
+                    }));
           }
-          body.add(grid);
+          JPanel stage = new JPanel(new BorderLayout(0, 18));
+          stage.add(grid, BorderLayout.NORTH);
+          JPanel journal = Theme.card(new BorderLayout(0, 8));
+          long count =
+              records.stream()
+                  .filter(
+                      f ->
+                          f.author().equals(service.user())
+                              && !f.date().isBefore(week)
+                              && f.date().isBefore(week.plusDays(7)))
+                  .count();
+          journal.add(Theme.label("한 주에 남긴 " + count + "개의 마디", 18), BorderLayout.NORTH);
+          JTextArea words = new JTextArea();
+          words.setEditable(false);
+          words.setOpaque(false);
+          words.setFont(Theme.font(14, false));
+          words.setForeground(Theme.MUTED);
+          words.setLineWrap(true);
+          words.setWrapStyleWord(true);
+          StringJoiner lines = new StringJoiner("   /   ");
+          records.stream()
+              .filter(
+                  f ->
+                      f.author().equals(service.user())
+                          && !f.date().isBefore(week)
+                          && f.date().isBefore(week.plusDays(7))
+                          && !f.memo().isBlank())
+              .forEach(f -> lines.add(f.date().getDayOfMonth() + "일 · " + f.memo()));
+          words.setText(lines.length() == 0 ? "작은 소리 하나로, 오늘을 기억해 보세요." : lines.toString());
+          journal.add(words);
+          journal.setPreferredSize(new Dimension(900, 120));
+          JPanel noteWrap = new JPanel(new BorderLayout());
+          noteWrap.add(journal, BorderLayout.NORTH);
+          stage.add(noteWrap);
+          body.add(stage);
           if (shared) {
+            stage.remove(noteWrap);
             String[] cols = {"참여자 · 모의", "월", "화", "수", "목", "금", "토", "일"};
             List<String> members = current.members().stream().sorted().toList();
             Object[][] rows = new Object[members.size()][8];
@@ -573,16 +654,38 @@ public final class MMM extends JFrame {
             body.add(sc, BorderLayout.SOUTH);
           }
           p.add(body);
-          p.add(
+          JPanel weekFooter = Theme.column();
+          weekFooter.add(new Transport(this, "주간 재생", () -> playWeek(records)));
+          weekFooter.add(
               Theme.row(
-                  Theme.button("보관함", this::library),
-                  Theme.button("악보·출력", () -> placeholder(false)),
-                  Theme.button("곡·참여자 관리", () -> placeholder(true)),
+                  find(records, service.user(), service.today()) != null
+                      ? Theme.button(
+                          "저장본 감상",
+                          () ->
+                              detail(
+                                  find(records, service.user(), service.today()),
+                                  service.today(),
+                                  service.user()))
+                      : new JLabel(""),
                   shared
                       ? Theme.button("오늘 공동 합주", () -> ensemble(records))
-                      : new JLabel("오늘 저장본도 읽기 전용으로 감상할 수 있어요."),
-                  shared ? Theme.button("초대", () -> inviteDialog(current)) : new JLabel("")),
-              BorderLayout.SOUTH);
+                      : Theme.muted("날짜를 눌러 그날의 소리를 만나 보세요.")));
+          JButton songActions = Theme.button("곡 메뉴 ···", () -> {});
+          songActions.addActionListener(
+              e -> {
+                JPopupMenu actions = new JPopupMenu();
+                popup(actions, "악보·출력", () -> placeholder(false));
+                popup(actions, "곡·참여자 관리", () -> placeholder(true));
+                if (shared) popup(actions, "초대", () -> inviteDialog(current));
+                actions.show(songActions, 0, songActions.getHeight());
+              });
+          JPanel navigation = new JPanel(new BorderLayout());
+          Component dates = body.getComponent(0);
+          body.remove(dates);
+          navigation.add(dates);
+          navigation.add(songActions, BorderLayout.EAST);
+          body.add(navigation, BorderLayout.NORTH);
+          p.add(weekFooter, BorderLayout.SOUTH);
           show(shared ? "S08" : "S05", p);
         });
   }
@@ -689,7 +792,10 @@ public final class MMM extends JFrame {
                 + " · 읽기 전용");
     JPanel c = new JPanel(new BorderLayout(12, 20));
     NoteCanvas canvas = new NoteCanvas(phrase::notes, false, null, null);
-    c.add(canvas);
+    JPanel listening = Theme.card(new BorderLayout());
+    listening.setBorder(new EmptyBorder(4, 3, 4, 3));
+    listening.add(canvas);
+    c.add(listening);
     JTextArea memo = new JTextArea(phrase.memo(), 3, 20);
     memo.setEditable(false);
     memo.setLineWrap(true);
@@ -1230,6 +1336,18 @@ public final class MMM extends JFrame {
                 + "저장 실패 시 편집 초안 유지 → 문제 해결 후 저장 재시도.\n"
                 + "버전 충돌 시 다른 저장본을 덮어쓰지 않습니다.\n"
                 + "공동 합주는 같은 날짜·같은 BPM에서 동시에 시작합니다."));
+    topics.addTab(
+        "소리 덩어리",
+        helpText(
+            "덩어리는 음 하나의 의미를 담습니다.\n\n"
+                + "꼬리가 길수록: 오래 소리남 (NoteEvent.duration).\n"
+                + "몸통이 두꺼울수록: 세게 소리남 (NoteEvent.velocity).\n"
+                + "위에 있을수록: 높은 음 (NoteEvent.pitch).\n"
+                + "가로 위치: 소리가 시작되는 박 (NoteEvent.start).\n\n"
+                + "기본은 먹색, 선택하면 주황 윤곽, 재생 중이면 주황으로 빛납니다.\n"
+                + "감상 화면은 회색으로 보여 주고 편집 입력을 받지 않습니다.\n"
+                + "선택한 덩어리 전체를 끌면 시간·높낮이가 바뀌고, 꼬리 끝을 끌면 길이가 바뀝니다.\n"
+                + "키보드 방향키·오른쪽 슬라이더로도 정밀하게 다듬을 수 있습니다."));
     topics.addTab(
         "구현 범위",
         helpText(

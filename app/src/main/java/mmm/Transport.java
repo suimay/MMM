@@ -9,18 +9,19 @@ public final class Transport extends JPanel {
   private boolean refreshing;
 
   public Transport(MMM app, String label, Runnable play) {
-    super(new FlowLayout(FlowLayout.LEFT, 8, 5));
-    JButton start = Theme.primary(label, play),
+    super(new FlowLayout(FlowLayout.LEFT, 6, 10));
+    JButton start = Theme.dark("▶ " + label, play),
         pause = Theme.button("일시정지", app.midi::pauseResume),
         stop = Theme.button("정지", app::stopSound);
     JCheckBox loop = new JCheckBox("반복");
     loop.addActionListener(e -> app.midi.loop(loop.isSelected()));
     app.midi.loop(false);
     JSlider scrub = new JSlider(0, 1000, 0);
-    scrub.setPreferredSize(new Dimension(200, 28));
+    scrub.setPreferredSize(new Dimension(130, 26));
+    Theme.slider(scrub);
     scrub.setToolTipText("재생 위치 이동");
-    JLabel status = new JLabel("정지 · 1마디 1박");
-    status.setPreferredSize(new Dimension(185, 25));
+    JLabel status = Theme.muted("정지 · 1마디 1박");
+    status.setPreferredSize(new Dimension(140, 25));
     scrub.addChangeListener(
         e -> {
           if (!refreshing) app.midi.seek(app.midi.length() * scrub.getValue() / 1000);

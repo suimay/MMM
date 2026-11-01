@@ -96,12 +96,15 @@ public final class Piano extends JPanel {
     Graphics2D g = (Graphics2D) raw.create();
     for (int i = 0; i < 8; i++) {
       int x = i * getWidth() / 8, w = getWidth() / 8, p = pitch(i);
-      g.setColor(held.containsValue(p) || mouse == p ? Theme.ORANGE : Color.WHITE);
-      g.fillRoundRect(x + 2, 2, w - 4, getHeight() - 4, 8, 8);
+      g.setColor(held.containsValue(p) || mouse == p ? Theme.ORANGE : Theme.SURFACE);
+      g.fillRoundRect(x + 1, 1, w - 3, getHeight() - 3, 5, 5);
       g.setColor(Theme.LINE);
-      g.drawRoundRect(x + 2, 2, w - 4, getHeight() - 4, 8, 8);
+      g.drawRoundRect(x + 1, 1, w - 3, getHeight() - 3, 5, 5);
       g.setColor(Theme.INK);
-      g.drawString(keys.charAt(i) + "  " + NoteCanvas.noteName(p), x + 12, getHeight() - 18);
+      g.setFont(Theme.font(12, false));
+      g.drawString(Character.toString(keys.charAt(i)), x + 12, getHeight() - 23);
+      g.setColor(Theme.MUTED);
+      g.drawString(NoteCanvas.noteName(p), x + 12, getHeight() - 8);
     }
     if (hasFocus()) {
       g.setColor(Theme.ORANGE);
