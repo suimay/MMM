@@ -23,7 +23,8 @@ public final class SharedWeekPanel extends JPanel {
   private Phrase selectedPhrase;
   private String playingAuthor;
   private LocalDate playingDate;
-  private boolean playingWeek;
+  private boolean playingWeek, playingAll;
+  public final DayPlaybackBar dayBar;
   private javax.swing.Timer timer;
 
   public SharedWeekPanel(
@@ -80,6 +81,16 @@ public final class SharedWeekPanel extends JPanel {
       table.getColumnModel().getColumn(i).setPreferredWidth(83);
     }
     table.getTableHeader().setReorderingAllowed(false);
+    table.getTableHeader().setToolTipText("요일을 누르면 그 날의 모든 참여자를 함께 재생합니다.");
+    table
+        .getTableHeader()
+        .addMouseListener(
+            new MouseAdapter() {
+              public void mouseClicked(MouseEvent e) {
+                int col = table.columnAtPoint(e.getPoint());
+                if (SwingUtilities.isLeftMouseButton(e) && col > 0) playDay(week.plusDays(col - 1));
+              }
+            });
     table
         .getSelectionModel()
         .addListSelectionListener(
@@ -109,11 +120,19 @@ public final class SharedWeekPanel extends JPanel {
                 openDetail();
               }
             });
-    inspector = new RecordInspector(app);
-    inspector.onAudition = () -> playingAuthor = null;
-    inspector.setPreferredSize(new Dimension(286, 390));
+    inspector = new RecordInspector(app, true);
+    inspector.onAudition =
+        () -> {
+          playingAuthor = null;
+          playingAll = false;
+        };
+
     JPanel preview = new JPanel(new BorderLayout());
-    preview.add(inspector);
+    JScrollPane inspectorScroll = new JScrollPane(inspector);
+    inspectorScroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+    inspectorScroll.setBorder(null);
+    inspectorScroll.getVerticalScrollBar().setUnitIncrement(18);
+    preview.add(inspectorScroll);
     preview.add(
         Theme.row(
             Theme.secondary("기록 자세히", this::openDetail),
@@ -124,7 +143,14 @@ public final class SharedWeekPanel extends JPanel {
     split.setDividerLocation(795);
     split.setBorder(null);
     split.setContinuousLayout(true);
-    body.add(split);
+    JPanel board = new JPanel(new BorderLayout(0, 7));
+    dayBar = new DayPlaybackBar(week, app.service.today(), this::playDay);
+    JPanel dayHeading = new JPanel(new BorderLayout(8, 4));
+    dayHeading.add(Theme.muted("요일 ▶ · 그 날 전체 합주 / 날짜 칸 · 한 사람의 기록"), BorderLayout.NORTH);
+    dayHeading.add(dayBar);
+    board.add(dayHeading, BorderLayout.NORTH);
+    board.add(split);
+    body.add(board);
     add(body);
     JPanel footer = Theme.column();
     footer.add(new Transport(app, "참여자 주간 재생", this::playMemberWeek));
@@ -137,6 +163,7 @@ public final class SharedWeekPanel extends JPanel {
                   app.edit(own, app.service.today());
                 }),
             Theme.secondary("함께 듣기", () -> app.showEnsemble(records, selectedDate)),
+            Theme.button("소리 일기장", () -> app.showJournal(records)),
             Theme.muted("가로: 한 사람의 일주일 · 세로: 같은 날의 여러 사람")));
     add(footer, BorderLayout.SOUTH);
     int own = 0;
@@ -160,7 +187,7 @@ public final class SharedWeekPanel extends JPanel {
               inspector.updatePlayback(
                   pos >= 0
                           && selectedMember != null
-                          && selectedMember.id().equals(playingAuthor)
+                          && (playingAll || selectedMember.id().equals(playingAuthor))
                           && selectedDate.equals(active)
                       ? pos % Model.BAR
                       : -1);
@@ -209,15 +236,36 @@ public final class SharedWeekPanel extends JPanel {
     playingAuthor = selectedMember == null ? null : selectedMember.id();
     playingDate = selectedDate;
     playingWeek = false;
+    playingAll = false;
     if (selectedPhrase != null && !selectedDate.isAfter(app.service.today()))
       app.play(
           List.of(new MidiEngine.Part(selectedPhrase, 0, 0, 100)), Model.BAR, selectedPhrase.bpm());
+  }
+
+  public void playDay(LocalDate date) {
+    if (date.isBefore(week) || date.isAfter(week.plusDays(6)) || date.isAfter(app.service.today()))
+      return;
+    if (members.size() > 15) {
+      app.error(new IllegalStateException("전체 합주는 최대 15파트까지 들을 수 있어요. 참여자별 듣기를 사용해 주세요."));
+      return;
+    }
+    int row = Math.max(0, table.getSelectedRow());
+    table.changeSelection(row, date.getDayOfWeek().getValue(), false, false);
+    dayBar.select(date);
+    playingDate = date;
+    playingWeek = false;
+    playingAll = true;
+    java.util.Map<String, Integer> levels = new java.util.LinkedHashMap<>();
+    members.forEach(m -> levels.put(m.id(), 100));
+    app.play(EnsembleData.parts(records, members, levels, date, false), Model.BAR, song.bpm());
+    status.setText(date + " · 전체 " + members.size() + "파트 합주 · 반복은 이 날만");
   }
 
   public void playMemberWeek() {
     if (selectedMember == null) return;
     playingAuthor = selectedMember.id();
     playingWeek = true;
+    playingAll = false;
     List<MidiEngine.Part> parts =
         EnsembleData.parts(
             records,

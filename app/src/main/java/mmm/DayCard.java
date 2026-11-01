@@ -5,72 +5,75 @@ import java.time.*;
 import javax.swing.*;
 import mmm.Model.*;
 
-/** One keyboard-accessible day target, with a semantic sound miniature. */
-public final class DayCard extends JButton {
-  private final LocalDate date;
-  private final Phrase phrase;
+/** Separate playback and editing targets so listening never opens the editor. */
+public final class DayCard extends JPanel {
+  public final LocalDate date;
   private final boolean today;
+  private boolean active;
 
-  public DayCard(LocalDate date, Phrase phrase, LocalDate today, Runnable open) {
-    super(date.equals(today) ? "오늘 편집" : "감상");
+  public DayCard(LocalDate date, Phrase phrase, LocalDate today, Runnable open, Runnable play) {
+    super(new BorderLayout(0, 6));
     this.date = date;
-    this.phrase = phrase;
     this.today = date.equals(today);
-    setEnabled(!date.isAfter(today));
-    setContentAreaFilled(false);
-    setBorderPainted(false);
+    boolean future = date.isAfter(today);
     setOpaque(false);
-    setPreferredSize(new Dimension(140, 230));
-    setToolTipText(date + (phrase == null ? " · 쉼 한 마디" : " · " + phrase.memo()));
-    getAccessibleContext().setAccessibleName(date + " " + getText());
-    addActionListener(e -> open.run());
+    setBorder(BorderFactory.createEmptyBorder(9, 8, 10, 8));
+    String day =
+        new String[] {"월", "화", "수", "목", "금", "토", "일"}[date.getDayOfWeek().getValue() - 1];
+    JButton listen = Theme.button(day + " " + date.getDayOfMonth() + "  ▶", play);
+    listen.setFont(Theme.font(18, true));
+    listen.setEnabled(!future);
+    listen.setToolTipText(date + "부터 일요일까지 이어 듣기 · 반복도 이 날부터");
+    listen.getAccessibleContext().setAccessibleName(date + "부터 재생");
+    add(listen, BorderLayout.NORTH);
+    JPanel drawing =
+        new JPanel() {
+          protected void paintComponent(Graphics raw) {
+            Graphics2D g = (Graphics2D) raw.create();
+            if (phrase != null && !phrase.notes().isEmpty())
+              SoundShape.miniature(
+                  g, phrase.notes(), 5, 12, getWidth() - 10, Math.max(35, getHeight() - 24));
+            else {
+              g.setColor(Theme.LINE);
+              g.drawLine(8, getHeight() / 2, getWidth() - 8, getHeight() / 2);
+            }
+            g.dispose();
+          }
+        };
+    drawing.setOpaque(false);
+    drawing.setPreferredSize(new Dimension(100, 90));
+    add(drawing);
+    JPanel bottom = new JPanel(new BorderLayout(0, 6));
+    bottom.setOpaque(false);
+    String memo =
+        phrase == null
+            ? future ? "아직 오지 않은 날" : "쉼 한 마디"
+            : phrase.memo().isBlank() ? "소리만 남긴 날" : phrase.memo();
+    JLabel caption = Theme.muted(memo);
+    caption.setToolTipText(memo);
+    bottom.add(caption, BorderLayout.NORTH);
+    JButton details = Theme.button(date.equals(today) ? "오늘 편집" : "기록 열기", open);
+    details.setEnabled(!future);
+    bottom.add(details);
+    add(bottom, BorderLayout.SOUTH);
+    setPreferredSize(new Dimension(140, 220));
   }
 
-  @Override
+  public void setActive(boolean active) {
+    if (this.active != active) {
+      this.active = active;
+      repaint();
+    }
+  }
+
   protected void paintComponent(Graphics raw) {
     Graphics2D g = (Graphics2D) raw.create();
     g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-    int w = getWidth(), h = getHeight();
-    g.setColor(today ? Theme.WASH : Theme.SURFACE);
-    g.fillRoundRect(0, 0, w - 1, h - 1, 12, 12);
-    g.setColor(today || hasFocus() ? Theme.ORANGE : Theme.LINE);
-    g.drawRoundRect(0, 0, w - 1, h - 1, 12, 12);
-    if (!isEnabled()) g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, .45f));
-    g.setFont(Theme.font(12, false));
-    g.setColor(Theme.MUTED);
-    g.drawString(
-        new String[] {"월", "화", "수", "목", "금", "토", "일"}[date.getDayOfWeek().getValue() - 1]
-            + (today ? " · 오늘" : ""),
-        14,
-        25);
-    g.setFont(Theme.font(24, true));
-    g.setColor(Theme.INK);
-    g.drawString(Integer.toString(date.getDayOfMonth()), 14, 58);
-    if (phrase != null && !phrase.notes().isEmpty())
-      SoundShape.miniature(g, phrase.notes(), 14, 78, w - 28, 65);
-    else {
-      g.setColor(Theme.LINE);
-      g.drawLine(15, 111, w - 16, 111);
-    }
-    g.setColor(Theme.MUTED);
-    g.setFont(Theme.font(11, false));
-    String memo =
-        phrase == null
-            ? "아직 남기지 않은 소리"
-            : phrase.memo().isBlank() ? phrase.notes().size() + "개의 소리" : phrase.memo();
-    while (g.getFontMetrics().stringWidth(memo) > w - 28 && memo.length() > 2)
-      memo = memo.substring(0, memo.length() - 2) + "…";
-    g.drawString(memo, 14, h - 53);
-    g.setFont(Theme.font(12, false));
-    g.setColor(today ? Theme.ORANGE : Theme.MUTED);
-    g.drawString(
-        !isEnabled()
-            ? "아직 오지 않은 날"
-            : today
-                ? (phrase == null ? "오늘의 첫 소리 +" : "이어서 다듬기 →")
-                : phrase == null ? "쉼 한 마디" : "기록 감상 →",
-        14,
-        h - 22);
+    g.setColor(today || active ? Theme.WASH : Theme.SURFACE);
+    g.fillRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 12, 12);
+    g.setColor(today || active ? Theme.ORANGE : Theme.LINE);
+    g.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 12, 12);
     g.dispose();
+    super.paintComponent(raw);
   }
 }
