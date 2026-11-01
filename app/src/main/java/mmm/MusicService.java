@@ -88,6 +88,18 @@ public final class MusicService {
     return repository.phrases(id);
   }
 
+  public List<EnsembleData.Member> participants(String songId) throws IOException {
+    Song song = access(songId);
+    List<EnsembleData.Member> members = new ArrayList<>();
+    for (String id : new TreeSet<>(song.members()))
+      members.add(
+          new EnsembleData.Member(
+              id,
+              repository.account(id).map(Account::nickname).orElse(id),
+              id.equals(song.owner())));
+    return List.copyOf(members);
+  }
+
   public Phrase save(Phrase draft) throws IOException {
     Song song = access(draft.songId());
     if (!draft.author().equals(user)) throw new IOException("다른 참여자의 기록은 변경할 수 없습니다.");

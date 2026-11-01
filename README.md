@@ -17,10 +17,10 @@ cd MMM/app
 ./demo.command
 ```
 
-또는 [실행 JAR 다운로드](downloads/MMM-2.1.jar?raw=true) 후 실행합니다.
+또는 [실행 JAR 다운로드](downloads/MMM-2.2.jar?raw=true) 후 실행합니다.
 
 ```sh
-java -jar MMM-2.1.jar --demo-date=2026-11-01
+java -jar MMM-2.2.jar --demo-date=2026-11-01
 ```
 
 시작 화면에서 **샘플 바로 듣기**를 누르거나 `demo / demo1234`로 로그인합니다. 이 계정은 공개 시연용입니다. 고정 날짜의 샘플 기록은 일반 모드 데이터와 분리됩니다.
@@ -30,6 +30,8 @@ java -jar MMM-2.1.jar --demo-date=2026-11-01
 - 단계 입력·4박 녹음, 펜타토닉, 카운트인·메트로놈
 - 길이·세기·높낮이를 담은 소리 덩어리와 꼬리 드래그, 실행 취소/다시 실행, 편집 전후 비교
 - 일시정지·반복·재생 위치 이동, 개인 주간·3파트 공동 합주
+- 참여자×요일 공동 주간표, 친구의 악기·메모·개별 음 상세
+- 작성자별 합주 타임라인과 연주 중인 음 표시, 실시간 파트 음소거·음량
 - 개인 2곡·공동 2곡, 총 112개 샘플 기록
 - 로컬 곡 관리·초대·참여, 시간 비례 악보·인쇄, MIDI 내보내기
 - 날짜·권한·버전 검사, 원자적 파일 저장, 이전 정상 파일 백업
@@ -38,10 +40,12 @@ java -jar MMM-2.1.jar --demo-date=2026-11-01
 
 **Java Swing / Java Sound MIDI / 로컬 파일 저장**입니다. 서버 인증·Spring Boot·PostgreSQL·원격 협업은 미구현이며 공동 기능은 같은 기기의 로컬 모의 기능입니다. 악보는 시간 비례 간단 기보입니다.
 
-모델·저장·기능 검사 **73개**, 실제 Swing 통합 검사 **39개**를 통과했습니다. 상세 범위와 검증 한계는 아래 문서에 기록했습니다.
+모델·저장·기능 검사 **101개**, 실제 Swing 통합 검사 **49개**를 통과했습니다. 상세 범위와 검증 한계는 아래 문서에 기록했습니다.
 
 - [디자인 기준·소리 덩어리의 의미](app/docs/DESIGN.md)
 - [사용법·단축키·빌드·구현 구조](app/README.md)
+- [화면별 Java 컴포넌트·이벤트 소개표](app/docs/components.md)
+- [발표용 화면 캡처 묶음](app/docs/presentation-captures.zip)
 - [검증 기록](app/docs/VERIFICATION.md)
 - [Java 소스](app/src/main/java/mmm)
 - [테스트](app/src/test/java/mmm)

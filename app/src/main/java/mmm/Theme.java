@@ -43,6 +43,7 @@ public final class Theme {
     UIManager.put("Table.background", SURFACE);
     UIManager.put("Table.gridColor", LINE);
     UIManager.put("Table.selectionBackground", WASH);
+    UIManager.put("Table.selectionForeground", INK);
     UIManager.put("OptionPane.okButtonText", "확인");
     UIManager.put("OptionPane.cancelButtonText", "취소");
     UIManager.put(

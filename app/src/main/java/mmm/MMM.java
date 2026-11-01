@@ -38,10 +38,12 @@ public final class MMM extends JFrame {
   private Piano trial;
   private final JLabel breadcrumb = Theme.muted("하루 한 마디");
   private final JButton back = Theme.button("‹ 보관함", () -> guard(this::library));
+  private List<EnsembleData.Member> currentMembers = List.of();
+  private Runnable detailBack = this::week;
   private final Map<String, List<Phrase>> libraryRecords = new HashMap<>();
 
   public MMM(MusicService service, Path dataPath) {
-    super("MMM · 음음음 2.1");
+    super("MMM · 음음음 2.2");
     this.service = service;
     this.dataPath = dataPath;
     this.week = Model.monday(service.today());
@@ -83,7 +85,15 @@ public final class MMM extends JFrame {
     working.setOpaque(true);
     working.setBackground(Theme.PAPER);
     working.setBorder(new EmptyBorder(20, 30, 20, 30));
-    glass.add(working);
+    GridBagConstraints waiting = new GridBagConstraints();
+    waiting.gridx = 0;
+    waiting.gridy = 0;
+    glass.add(working, waiting);
+    JProgressBar progress = new JProgressBar();
+    progress.setIndeterminate(true);
+    progress.setPreferredSize(new Dimension(280, 8));
+    waiting.gridy = 1;
+    glass.add(progress, waiting);
     glass.addMouseListener(new MouseAdapter() {});
     glass.addKeyListener(new KeyAdapter() {});
     glass.setFocusable(true);
@@ -226,7 +236,7 @@ public final class MMM extends JFrame {
         JOptionPane.ERROR_MESSAGE);
   }
 
-  private void show(String id, JPanel panel) {
+  void show(String id, JPanel panel) {
     getRootPane().setDefaultButton(null);
     stopSound();
     if (viewerTimer != null) {
@@ -255,7 +265,8 @@ public final class MMM extends JFrame {
     for (ActionListener listener : back.getActionListeners()) back.removeActionListener(listener);
     boolean toWeek = current != null && Set.of("S06", "S07", "S09", "S10", "S11").contains(id);
     back.setText(toWeek ? "‹ 주간으로" : "‹ 보관함");
-    back.addActionListener(e -> guard(toWeek ? this::week : this::library));
+    back.addActionListener(
+        e -> guard(id.equals("S07") ? detailBack : toWeek ? this::week : this::library));
     cards.removeAll();
     cards.add(panel, id);
     ((CardLayout) cards.getLayout()).show(cards, id);
@@ -301,7 +312,18 @@ public final class MMM extends JFrame {
     c.add(Box.createVerticalStrut(20));
     c.add(Theme.label("먼저, 아무 건반이나 눌러 보세요.", 22));
     c.add(Box.createVerticalStrut(25));
-    trial = new Piano(() -> true, n -> midi.on(n, 0), midi::off);
+    JComboBox<String> sounds = new JComboBox<>(INSTRUMENT_NAMES);
+    JLabel picture = new JLabel(ArtAssets.instrument(0, 94));
+    c.add(Theme.row(picture, new JLabel("체험 악기"), sounds));
+    trial = new Piano(() -> true, n -> midi.on(n, PROGRAMS[sounds.getSelectedIndex()]), midi::off);
+    sounds.addItemListener(
+        e -> {
+          if (e.getStateChange() == ItemEvent.SELECTED) {
+            trial.releaseAll();
+            midi.stop();
+            picture.setIcon(ArtAssets.instrument(PROGRAMS[sounds.getSelectedIndex()], 94));
+          }
+        });
     trial.setMaximumSize(new Dimension(1000, 140));
     c.add(trial);
     c.add(Box.createVerticalStrut(28));
@@ -387,6 +409,45 @@ public final class MMM extends JFrame {
     form.add(pw);
     form.add(new JLabel("비밀번호 확인"));
     form.add(confirm);
+    JLabel validation = Theme.muted("모든 항목을 입력해 주세요.");
+    Runnable validate =
+        () -> {
+          char[] a = pw.getPassword(), b = confirm.getPassword();
+          try {
+            validation.setText(
+                !id.getText().matches("[A-Za-z0-9_]{3,24}")
+                    ? "아이디: 영문·숫자·밑줄 3~24자"
+                    : nick.getText().isBlank()
+                        ? "닉네임을 입력해 주세요."
+                        : a.length < 8
+                            ? "비밀번호는 8자 이상입니다."
+                            : !Arrays.equals(a, b)
+                                ? "비밀번호 확인이 다릅니다."
+                                : "입력 형식이 올바릅니다. 가입을 눌러 중복 여부를 확인하세요.");
+          } finally {
+            Arrays.fill(a, '\0');
+            Arrays.fill(b, '\0');
+          }
+        };
+    DocumentListener liveValidation =
+        new DocumentListener() {
+          public void insertUpdate(DocumentEvent e) {
+            validate.run();
+          }
+
+          public void removeUpdate(DocumentEvent e) {
+            validate.run();
+          }
+
+          public void changedUpdate(DocumentEvent e) {
+            validate.run();
+          }
+        };
+    for (JTextField input : new JTextField[] {id, nick, pw, confirm})
+      input.getDocument().addDocumentListener(liveValidation);
+    form.add(new JLabel("입력 확인"));
+    form.add(validation);
+
     JPanel c = Theme.column();
     c.add(form);
     c.add(
@@ -538,10 +599,15 @@ public final class MMM extends JFrame {
     work(
         () -> {
           current = service.access(current.id());
+          currentMembers = service.participants(current.id());
           return service.phrases(current.id());
         },
         records -> {
           boolean shared = current.shared();
+          if (shared) {
+            show("S08", new SharedWeekPanel(this, current, records, currentMembers, week));
+            return;
+          }
           JPanel p =
               Theme.page(
                   shared ? "S08" : "S05",
@@ -697,7 +763,7 @@ public final class MMM extends JFrame {
         .orElse(null);
   }
 
-  private void edit(Phrase value, LocalDate date) {
+  void edit(Phrase value, LocalDate date) {
     Phrase draft =
         value == null
             ? new Phrase(
@@ -766,6 +832,16 @@ public final class MMM extends JFrame {
   }
 
   private void detail(Phrase value, LocalDate date, String author) {
+    inspectRecord(value, date, author, this::week);
+  }
+
+  void inspectRecord(Phrase value, LocalDate date, String author, Runnable backAction) {
+    detailBack = backAction;
+    EnsembleData.Member member =
+        currentMembers.stream()
+            .filter(m -> m.id().equals(author))
+            .findFirst()
+            .orElse(new EnsembleData.Member(author, author, false));
     Phrase phrase =
         value == null
             ? new Phrase(
@@ -781,27 +857,16 @@ public final class MMM extends JFrame {
     JPanel p =
         Theme.page(
             "S07",
-            "소리를 다시 만나는 시간",
+            member.nickname() + "의 한 마디",
             date
                 + " · "
                 + author
                 + " · "
-                + phrase.bpm()
-                + " BPM · "
-                + INSTRUMENT_NAMES[instrumentIndex(phrase.instrument())]
+                + ArtAssets.instrumentName(phrase.instrument())
                 + " · 읽기 전용");
-    JPanel c = new JPanel(new BorderLayout(12, 20));
-    NoteCanvas canvas = new NoteCanvas(phrase::notes, false, null, null);
-    JPanel listening = Theme.card(new BorderLayout());
-    listening.setBorder(new EmptyBorder(4, 3, 4, 3));
-    listening.add(canvas);
-    c.add(listening);
-    JTextArea memo = new JTextArea(phrase.memo(), 3, 20);
-    memo.setEditable(false);
-    memo.setLineWrap(true);
-    memo.setBackground(Theme.PAPER);
-    c.add(memo, BorderLayout.SOUTH);
-    p.add(c);
+    RecordInspector inspector = new RecordInspector(this);
+    inspector.setRecord(value, date, member, current.bpm(), current.instrument());
+    p.add(inspector);
     JPanel footer = Theme.column();
     footer.add(
         new Transport(
@@ -810,7 +875,7 @@ public final class MMM extends JFrame {
             () -> play(List.of(new MidiEngine.Part(phrase, 0, 0, 100)), Model.BAR, phrase.bpm())));
     footer.add(
         Theme.row(
-            Theme.button("주간으로", this::week),
+            Theme.button("돌아가기", backAction),
             Theme.button(
                 "MIDI 내보내기",
                 () ->
@@ -824,10 +889,26 @@ public final class MMM extends JFrame {
         new javax.swing.Timer(
             40,
             e -> {
-              canvas.playhead = midi.position();
-              canvas.repaint();
+              inspector.updatePlayback(midi.position());
             });
     viewerTimer.start();
+  }
+
+  void moveWeek(int amount) {
+    week = amount == 0 ? Model.monday(service.today()) : week.plusWeeks(amount);
+    week();
+  }
+
+  void showInvite(Song song) {
+    inviteDialog(song);
+  }
+
+  void showManagement() {
+    manageSong();
+  }
+
+  void showEnsemble(List<Phrase> records, LocalDate date) {
+    ensemble(records, date);
   }
 
   public void play(List<MidiEngine.Part> parts, int length, int bpm) {
@@ -848,124 +929,20 @@ public final class MMM extends JFrame {
   }
 
   private void ensemble(List<Phrase> records) {
-    JPanel p =
-        Theme.page(
-            "S09", "함께, 같은 박자로", "같은 기기의 샘플/로컬 파트 · C 펜타토닉 권장 · 공통 " + current.bpm() + " BPM");
-    JPanel c = Theme.column();
-    JComboBox<LocalDate> dates = new JComboBox<>();
-    for (int d = 0; d < 7; d++) {
-      LocalDate day = week.plusDays(d);
-      if (!day.isAfter(service.today())) dates.addItem(day);
+    ensemble(records, service.today());
+  }
+
+  private void ensemble(List<Phrase> records, LocalDate date) {
+    show("S09", new EnsemblePanel(this, current, records, currentMembers, week, date));
+  }
+
+  public void playMix(
+      List<MidiEngine.Part> parts, int length, int bpm, Map<Integer, Integer> levels) {
+    try {
+      midi.play(parts, length, bpm, levels);
+    } catch (Exception ex) {
+      error(ex);
     }
-    if (dates.getItemCount() == 0) dates.addItem(service.today());
-    dates.setSelectedItem(
-        service.today().isBefore(week.plusDays(6)) ? service.today() : week.plusDays(6));
-    JCheckBox whole = new JCheckBox("이 주 전체 · 7마디");
-    c.add(Theme.row(new JLabel("감상 날짜"), dates, whole));
-    List<String> users = current.members().stream().sorted().limit(15).toList();
-    List<JCheckBox> enabled = new ArrayList<>();
-    List<JSlider> volumes = new ArrayList<>();
-    List<JLabel> counts = new ArrayList<>();
-    Runnable update =
-        () -> {
-          LocalDate day = (LocalDate) dates.getSelectedItem();
-          for (int i = 0; i < users.size(); i++) {
-            String u = users.get(i);
-            long count =
-                records.stream()
-                    .filter(
-                        f ->
-                            f.author().equals(u)
-                                && (whole.isSelected()
-                                    ? !f.date().isBefore(week)
-                                        && f.date().isBefore(week.plusDays(7))
-                                    : f.date().equals(day)))
-                    .count();
-            counts.get(i).setText(count == 0 ? "쉼" : count + "개 기록");
-          }
-        };
-    for (String user : users) {
-      JCheckBox check =
-          new JCheckBox(user + (user.equals(service.user()) ? " · 내 파트" : " · 친구 파트"), true);
-      JSlider volume = new JSlider(0, 100, 80);
-      JLabel count = new JLabel();
-      enabled.add(check);
-      volumes.add(volume);
-      counts.add(count);
-      JPanel row = Theme.row(check, new JLabel("음량"), volume, count);
-      row.setMaximumSize(new Dimension(2000, 60));
-      c.add(row);
-    }
-    update.run();
-    dates.addActionListener(
-        e -> {
-          stopSound();
-          update.run();
-        });
-    whole.addActionListener(
-        e -> {
-          stopSound();
-          dates.setEnabled(!whole.isSelected());
-          update.run();
-        });
-    Supplier<List<MidiEngine.Part>> parts =
-        () -> {
-          List<MidiEngine.Part> result = new ArrayList<>();
-          for (int i = 0; i < users.size(); i++)
-            if (enabled.get(i).isSelected()) {
-              for (int d = 0; d < (whole.isSelected() ? 7 : 1); d++) {
-                LocalDate day =
-                    whole.isSelected() ? week.plusDays(d) : (LocalDate) dates.getSelectedItem();
-                Phrase f = find(records, users.get(i), day);
-                if (f != null)
-                  result.add(
-                      new MidiEngine.Part(
-                          f, d * Model.BAR, i < 9 ? i : i + 1, volumes.get(i).getValue()));
-              }
-            }
-          return result;
-        };
-    c.add(
-        Theme.row(
-            Theme.button(
-                "내 소리만",
-                () -> {
-                  stopSound();
-                  for (int i = 0; i < users.size(); i++)
-                    enabled.get(i).setSelected(users.get(i).equals(service.user()));
-                }),
-            Theme.button(
-                "친구 소리만",
-                () -> {
-                  stopSound();
-                  for (int i = 0; i < users.size(); i++)
-                    enabled.get(i).setSelected(!users.get(i).equals(service.user()));
-                }),
-            Theme.button(
-                "모두 선택",
-                () -> {
-                  stopSound();
-                  enabled.forEach(b -> b.setSelected(true));
-                })));
-    c.add(new JLabel("파트/음량 변경 후 다시 재생하면 적용됩니다. 빈 날짜는 쉼 한 마디입니다."));
-    c.add(Box.createVerticalGlue());
-    p.add(c);
-    JPanel footer = Theme.column();
-    footer.add(
-        new Transport(
-            this,
-            "모두 재생",
-            () -> play(parts.get(), (whole.isSelected() ? 7 : 1) * Model.BAR, current.bpm())));
-    footer.add(
-        Theme.row(
-            Theme.button(
-                "MIDI 내보내기",
-                () ->
-                    exportMidi(
-                        parts.get(), (whole.isSelected() ? 7 : 1) * Model.BAR, current.bpm())),
-            Theme.button("공동 주간", this::week)));
-    p.add(footer, BorderLayout.SOUTH);
-    show("S09", p);
   }
 
   private void placeholder(boolean management) {
@@ -1009,9 +986,7 @@ public final class MMM extends JFrame {
         };
     table.setRowHeight(36);
     c.add(new JScrollPane(table));
-    c.add(
-        new JLabel("공동곡 BPM은 합주 전체에 적용됩니다. 기존 음·메모는 보존하며, 내 오늘 편집도 새 BPM을 사용합니다."),
-        BorderLayout.SOUTH);
+    c.add(tempoInfo(bpm), BorderLayout.SOUTH);
     p.add(c);
     JButton save =
         Theme.primary(
@@ -1060,6 +1035,19 @@ public final class MMM extends JFrame {
     p.add(
         Theme.row(save, invite, leave, Theme.button("취소 · 주간으로", this::week)), BorderLayout.SOUTH);
     show("S10", p);
+  }
+
+  private JLabel tempoInfo(JSpinner bpm) {
+    JLabel info = Theme.muted("");
+    Runnable update =
+        () ->
+            info.setText(
+                "한 마디 약 "
+                    + String.format(Locale.ROOT, "%.1f", 240.0 / (int) bpm.getValue())
+                    + "초 · 저장하면 공통 BPM에 적용 · 기존 음·메모는 보존");
+    bpm.addChangeListener(e -> update.run());
+    update.run();
+    return info;
   }
 
   private void score() {
@@ -1168,6 +1156,41 @@ public final class MMM extends JFrame {
     p.add(Theme.row(new JLabel("곡 이름"), name));
     p.add(Theme.row(personal, shared));
     p.add(Theme.row(new JLabel("BPM"), bpm, new JLabel("악기"), inst));
+    JLabel validation = Theme.muted("곡 이름을 입력해 주세요.");
+    JLabel illustration = new JLabel(ArtAssets.instrument(PROGRAMS[inst.getSelectedIndex()], 70));
+    p.add(Theme.row(illustration, validation));
+    Runnable validate =
+        () ->
+            validation.setText(
+                name.getText().isBlank()
+                    ? "곡 이름을 입력해 주세요."
+                    : "한 마디 약 "
+                        + String.format(java.util.Locale.ROOT, "%.1f", 240.0 / (int) bpm.getValue())
+                        + "초 · "
+                        + (shared.isSelected() ? "공동곡" : "개인곡"));
+    name.getDocument()
+        .addDocumentListener(
+            new DocumentListener() {
+              public void insertUpdate(DocumentEvent e) {
+                validate.run();
+              }
+
+              public void removeUpdate(DocumentEvent e) {
+                validate.run();
+              }
+
+              public void changedUpdate(DocumentEvent e) {
+                validate.run();
+              }
+            });
+    bpm.addChangeListener(e -> validate.run());
+    shared.addItemListener(e -> validate.run());
+    inst.addItemListener(
+        e -> {
+          if (e.getStateChange() == ItemEvent.SELECTED)
+            illustration.setIcon(ArtAssets.instrument(PROGRAMS[inst.getSelectedIndex()], 70));
+        });
+
     if (JOptionPane.showConfirmDialog(this, p, "D01 · 새 곡 만들기", JOptionPane.OK_CANCEL_OPTION)
         == JOptionPane.OK_OPTION) {
       String title = name.getText();
@@ -1237,7 +1260,9 @@ public final class MMM extends JFrame {
     JSpinner countBeats = new JSpinner(new SpinnerNumberModel(settings.countInBeats(), 1, 8, 1));
     JTabbedPane tabs = new JTabbedPane();
     JPanel sound = Theme.column();
-    sound.add(Theme.row(new JLabel("전체 음량"), volume));
+    JLabel level = Theme.muted(volume.getValue() + "%");
+    volume.addChangeListener(e -> level.setText(volume.getValue() + "%"));
+    sound.add(Theme.row(new JLabel("전체 음량"), volume, level));
     sound.add(Theme.row(new JLabel("기본 악기"), inst));
     sound.add(Theme.row(count, new JLabel("준비 박 수"), countBeats));
     sound.add(Theme.row(metronome));
@@ -1358,6 +1383,7 @@ public final class MMM extends JFrame {
                 + "카운트인·소리 메트로놈·편집 실행 취소/다시 실행을 제공합니다.\n"
                 + "주간 재생은 곡 BPM 하나를 기준으로 일곱 마디를 재생합니다.\n"
                 + "서로 다른 날짜의 개별 BPM은 감상 화면에서 적용됩니다."));
+    topics.addTab("수업 요소 안내", new ComponentGuide());
     p.add(topics);
     p.add(
         Theme.row(Theme.button("시작으로", this::start), Theme.button("곡 보관함", this::library)),

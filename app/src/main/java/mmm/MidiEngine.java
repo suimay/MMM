@@ -36,6 +36,7 @@ public final class MidiEngine implements AutoCloseable {
 
   public synchronized void on(int pitch, int instrument) {
     if (volume > 0 && synth != null && synth.isOpen()) {
+      synth.getChannels()[0].controlChange(7, 127);
       synth.getChannels()[0].programChange(instrument);
       synth.getChannels()[0].noteOn(pitch, Math.max(1, 100 * volume / 100));
     }
@@ -93,6 +94,11 @@ public final class MidiEngine implements AutoCloseable {
   }
 
   public synchronized void play(List<Part> parts, int length, int bpm) throws Exception {
+    play(parts, length, bpm, Map.of());
+  }
+
+  public synchronized void play(List<Part> parts, int length, int bpm, Map<Integer, Integer> levels)
+      throws Exception {
     stop();
     if (sequencer == null || !sequencer.isOpen()) throw new IllegalStateException(status);
     List<Part> scaled =
@@ -104,7 +110,16 @@ public final class MidiEngine implements AutoCloseable {
     loaded = true;
     paused = false;
     sequencer.setLoopCount(looping ? Sequencer.LOOP_CONTINUOUSLY : 0);
+    if (synth != null) for (int ch = 0; ch < 16; ch++) partLevel(ch, levels.getOrDefault(ch, 100));
     sequencer.start();
+  }
+
+  public synchronized void partLevel(int channel, int level) {
+    if (channel < 0 || channel > 15 || channel == 9) return;
+    if (synth != null && synth.isOpen()) {
+      synth.getChannels()[channel].controlChange(7, Math.max(0, Math.min(127, level * 127 / 100)));
+      if (level <= 0) synth.getChannels()[channel].allSoundOff();
+    }
   }
 
   public synchronized void click(boolean accent) {
