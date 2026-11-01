@@ -17,10 +17,10 @@ cd MMM/app
 ./demo.command
 ```
 
-또는 [실행 JAR 다운로드](downloads/MMM-2.3.jar?raw=true) 후 실행합니다.
+또는 [실행 JAR 다운로드](downloads/MMM-2.3.1.jar?raw=true) 후 실행합니다.
 
 ```sh
-java -jar MMM-2.3.jar --demo-date=2026-11-01
+java -jar MMM-2.3.1.jar --demo-date=2026-11-01
 ```
 
 시작 화면에서 **샘플 바로 듣기**를 누르거나 `demo / demo1234`로 로그인합니다. 이 계정은 공개 시연용입니다. 고정 날짜의 샘플 기록은 일반 모드 데이터와 분리됩니다.
@@ -43,7 +43,7 @@ java -jar MMM-2.3.jar --demo-date=2026-11-01
 
 **Java Swing / Java Sound MIDI / 로컬 파일 저장**입니다. 서버 인증·Spring Boot·PostgreSQL·원격 협업은 미구현이며 공동 기능은 같은 기기의 로컬 모의 기능입니다. 악보는 시간 비례 간단 기보입니다.
 
-모델·저장·기능 검사 **101개**, 실제 Swing 통합 검사 **75개**를 통과했습니다. 상세 범위와 검증 한계는 아래 문서에 기록했습니다.
+모델·저장·기능 검사 **101개**, 실제 Swing 통합 검사 **73개**를 통과했습니다. 상세 범위와 검증 한계는 아래 문서에 기록했습니다.
 
 - [화면 흐름·이벤트와 UX 검토](app/docs/UX-REVIEW.md)
 - [디자인 기준·소리 덩어리의 의미](app/docs/DESIGN.md)

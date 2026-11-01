@@ -204,11 +204,6 @@ public final class GuiFlowTest {
           () -> {
             check(app.isShowing(), "real JFrame visible");
             ProloguePanel prologue = find(app.getContentPane(), ProloguePanel.class);
-            check(
-                prologue.piano.pitch(3) == 65
-                    && prologue.piano.pitch(6) == 71
-                    && prologue.piano.pitch(7) == 72,
-                "cover keyboard is do re mi fa sol la si do");
             prologue.select(2);
             prologue.pitch.setValue(72);
             prologue.duration.setValue(8);
@@ -222,10 +217,6 @@ public final class GuiFlowTest {
             prologue.playSequence();
             prologue.pitch.setValue(71);
             check(!app.midi.playing(), "changing logo shape stops stale audio sequence");
-            prologue.playSequence();
-            key(prologue.piano, KeyEvent.VK_A, 'a', true);
-            check(!app.midi.playing(), "cover keyboard stops sequence before live playing");
-            key(prologue.piano, KeyEvent.VK_A, 'a', false);
             prologue.select(0);
             prologue.duration.setValue(8);
             prologue.select(2);

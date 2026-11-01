@@ -35,7 +35,6 @@ public final class MMM extends JFrame {
   private JPanel glass;
   private final Path dataPath;
   private javax.swing.Timer viewerTimer;
-  private Piano trial;
   private final JLabel breadcrumb = Theme.muted("하루 한 마디");
   private final JButton back = Theme.button("‹ 보관함", () -> guard(this::library));
   private List<EnsembleData.Member> currentMembers = List.of();
@@ -43,7 +42,7 @@ public final class MMM extends JFrame {
   private final Map<String, List<Phrase>> libraryRecords = new HashMap<>();
 
   public MMM(MusicService service, Path dataPath) {
-    super("MMM · 음음음 2.3");
+    super("MMM · 음음음 2.3.1");
     this.service = service;
     this.dataPath = dataPath;
     this.week = Model.monday(service.today());
@@ -282,7 +281,6 @@ public final class MMM extends JFrame {
 
   public void stopSound() {
     if (editor != null) editor.stop();
-    if (trial != null) trial.releaseAll();
     midi.stop();
   }
 
@@ -329,7 +327,6 @@ public final class MMM extends JFrame {
                 : () -> login(""),
             this::help);
     show("S01", next);
-    trial = next.piano;
   }
 
   private void login(String id) {

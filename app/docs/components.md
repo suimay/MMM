@@ -6,7 +6,7 @@
 
 | 화면 | 사용자 기능·시연 행동 | 주요 컴포넌트 | 이벤트 | 실행 캡처 |
 |---|---|---|---|---|
-| S01 · 시작·소리 체험 | m 글자의 높이·너비로 음높이·길이를 바꾸고 세 음 이어 듣기, 도레미 건반 체험 | JLabel(ImageIcon), JComboBox, JPanel, JSlider, JButton | ItemListener, KeyListener, MouseListener, MouseMotionListener, FocusListener, ChangeListener | [보기](S01-start.png) |
+| S01 · 시작·소리 체험 | m 글자의 높이·너비로 음높이·길이를 바꾸고 세 음 이어 듣기 | JLabel, JPanel, JSlider, JButton | MouseListener, MouseMotionListener, ChangeListener, ActionListener | [보기](S01-start.png) |
 | S02 · 로그인 | 아이디·비밀번호 검증 후 로컬 로그인 | JTextField, JPasswordField, JButton, JLabel | ActionListener, WindowListener | [보기](S02-login.png) |
 | S03 · 회원가입 | 입력 오류·중복 계정 검사 및 가입 | JTextField, JPasswordField, JLabel, JButton | ActionListener, DocumentListener | [보기](S03-signup.png) |
 | S04 · 곡 보관함 | 검색·정렬·더블클릭·Enter로 개인/공동 곡 열기 | JTabbedPane, JList, JScrollPane, JTextField, JComboBox | DocumentListener, MouseListener, ActionListener | [보기](S04-library.png) |
@@ -82,9 +82,9 @@ Graphics2D·AffineTransform: 소리 덩어리/글자/일기 그림 렌더링. Bo
 
 ![S01](S01-start.png)
 
-- 컴포넌트: JButton ×7, JComboBox ×1, JFrame ×1, JLabel ×16, JLabel(ImageIcon) ×1, JMenu ×4, JMenuBar ×1, JPanel ×18, JProgressBar ×1, JSlider ×2
-- 앱 코드가 등록한 이벤트: ActionListener ×8, ChangeListener ×2, FocusListener ×1, ItemListener ×1, KeyListener ×2, MouseListener ×3, MouseMotionListener ×1, WindowFocusListener ×1, WindowListener ×1
-- 배치 관리자: AquaComboBoxLayoutManager, BorderLayout, BoxLayout, CardLayout, FlowLayout, GridBagLayout, GridLayout, RootLayout
+- 컴포넌트: JButton ×7, JFrame ×1, JLabel ×13, JMenu ×4, JMenuBar ×1, JPanel ×16, JProgressBar ×1, JSlider ×2
+- 앱 코드가 등록한 이벤트: ActionListener ×8, ChangeListener ×2, KeyListener ×1, MouseListener ×2, MouseMotionListener ×1, WindowFocusListener ×1, WindowListener ×1
+- 배치 관리자: BorderLayout, BoxLayout, CardLayout, FlowLayout, GridBagLayout, GridLayout, RootLayout
 
 ## S02 실제 구성
 

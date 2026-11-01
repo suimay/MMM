@@ -18,8 +18,6 @@ public final class ProloguePanel extends JPanel {
   private boolean updating;
   private final JLabel caption = Theme.muted("첫 번째 음 · 도 C4 · 1박"), lengthLabel = new JLabel();
   public final JSlider pitch = new JSlider(48, 84, 60), duration = new JSlider(1, 8, 4);
-  public final JComboBox<String> sounds = new JComboBox<>(MMM.INSTRUMENT_NAMES);
-  public final Piano piano;
   public final LogoCanvas logo = new LogoCanvas();
   private final javax.swing.Timer timer;
   private boolean sequencePlaying;
@@ -51,25 +49,6 @@ public final class ProloguePanel extends JPanel {
     editor.add(sliders);
     lower.add(editor);
     lower.add(Theme.muted("높은 m은 높은 음, 넓은 m은 긴 음 · 소리 덩어리에도 같은 원리가 이어져요."));
-    piano =
-        new Piano(
-            () -> false,
-            n -> {
-              sequencePlaying = false;
-              if (app.midi.playing() || app.midi.paused()) app.midi.stop();
-              app.midi.on(n, MMM.PROGRAMS[sounds.getSelectedIndex()]);
-            },
-            app.midi::off);
-    piano.setPreferredSize(new Dimension(800, 76));
-    piano.setMaximumSize(new Dimension(4000, 76));
-    JLabel picture = new JLabel(ArtAssets.instrument(0, 32));
-    lower.add(
-        Theme.row(
-            picture,
-            new JLabel("체험 악기"),
-            sounds,
-            Theme.muted("도·레·미·파·솔·라·시·도  /  A S D F G H J K")));
-    lower.add(piano);
     for (Component c : lower.getComponents())
       if (c instanceof JComponent j) j.setAlignmentX(Component.LEFT_ALIGNMENT);
     body.add(lower, BorderLayout.SOUTH);
@@ -98,15 +77,6 @@ public final class ProloguePanel extends JPanel {
             if (app.midi.playing() || app.midi.paused()) app.midi.stop();
             lengths[selected] = duration.getValue() * 120;
             refresh();
-          }
-        });
-    sounds.addItemListener(
-        e -> {
-          if (e.getStateChange() == ItemEvent.SELECTED) {
-            piano.releaseAll();
-            app.stopSound();
-            sequencePlaying = false;
-            picture.setIcon(ArtAssets.instrument(MMM.PROGRAMS[sounds.getSelectedIndex()], 32));
           }
         });
     timer = new javax.swing.Timer(40, e -> logo.repaint());
@@ -152,7 +122,7 @@ public final class ProloguePanel extends JPanel {
               app.service.today(),
               0,
               90,
-              MMM.PROGRAMS[sounds.getSelectedIndex()],
+              0,
               "",
               List.of(new NoteEvent(0, lengths[i], pitches[i], 85)));
       out.add(new MidiEngine.Part(f, offset, 0, 100));
@@ -163,14 +133,12 @@ public final class ProloguePanel extends JPanel {
 
   public void playSelected() {
     sequencePlaying = false;
-    piano.releaseAll();
     MidiEngine.Part part = parts().get(selected);
     app.play(List.of(new MidiEngine.Part(part.phrase(), 0, 0, 100)), lengths[selected], 90);
   }
 
   public void playSequence() {
     sequencePlaying = true;
-    piano.releaseAll();
     app.play(parts(), java.util.Arrays.stream(lengths).sum(), 90);
   }
 
@@ -183,7 +151,6 @@ public final class ProloguePanel extends JPanel {
   @Override
   public void removeNotify() {
     if (timer != null) timer.stop();
-    piano.releaseAll();
     super.removeNotify();
   }
 
@@ -234,7 +201,9 @@ public final class ProloguePanel extends JPanel {
       Rectangle2D box = glyph.getBounds2D();
       double cell = Math.min(240, getWidth() / 3.0),
           left = (getWidth() - cell * 3) / 2,
-          baseline = getHeight() - 46;
+          baseline =
+              Math.min(
+                  getHeight() - 46, (getHeight() + Math.min(170, getHeight() - 65)) / 2.0 - 10);
       long pos = app.midi.position();
       int offset = 0;
       for (int i = 0; i < 3; i++) {
@@ -258,7 +227,8 @@ public final class ProloguePanel extends JPanel {
       g.setColor(GREEN);
       g.setFont(Theme.font(15, false));
       String text = "음 음 음  ·  하루 한 마디";
-      g.drawString(text, (getWidth() - g.getFontMetrics().stringWidth(text)) / 2, getHeight() - 7);
+      g.drawString(
+          text, (getWidth() - g.getFontMetrics().stringWidth(text)) / 2, (int) baseline + 44);
       g.dispose();
     }
   }
