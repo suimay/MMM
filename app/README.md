@@ -2,6 +2,20 @@
 
 하루를 한 마디 소리로 남기는 **Java Swing 데스크톱 앱**입니다. 실제 연주·편집·저장·재생이 동작하며 인터넷 없이 사용할 수 있습니다. 발표 자료는 보존하고 `app/` 안에서 구현했습니다.
 
+## 감정으로 화음 찾기
+
+오늘 편집에서 **감정으로 화음 찾기**를 누르면 기쁨·슬픔·그리움·긴장감·긍정적인 인상에 연결된 화음 후보를 볼 수 있습니다. 7개 화음을 같은 피아노 조건으로 비교하고, 연구 근거 탭에서 원문 평균·표준편차·조건·DOI를 확인합니다. 고른 화음은 지정한 시작 박과 길이로 기존 음에 추가하며, 실행 취소 한 번으로 복원합니다. 기존 메모·악기·BPM은 유지합니다.
+
+태그는 음악에서 지각되는 인상의 후보입니다. 앱의 재생음과 사용자에게 검증된 감정 분류는 아니며, 사용자의 현재 기분을 추정하지 않습니다. 선택한 태그 자체는 일기에 저장하지 않고 삽입한 `NoteEvent`만 기존 형식으로 저장합니다.
+
+```sh
+./review-emotions.command      # 빌드 후 화음 창 열기, Mac에서는 문서도 열기
+./test-emotions-gui.sh         # 실제 Swing 필터·삽입·취소·저장 검사
+java -jar build/MMM.jar --emotion-palette
+```
+
+**[구조·기준·개발 전체 브리핑](docs/emotion/README.md)** · [기준표](docs/emotion/CRITERIA.md) · [논문](docs/emotion/SOURCES.md) · [검증](docs/emotion/VALIDATION.md). 이 기능은 현재 소스를 빌드하거나 [MMM-emotion-preview.jar](../downloads/MMM-emotion-preview.jar)를 실행해야 사용할 수 있습니다. 기존 `MMM-2.3.1.jar`에는 포함되지 않습니다.
+
 ## GitHub에서 받은 경우
 
 이 저장소에는 개인 기록, 계정 파일, JDK 설치본, macOS 앱 묶음이 포함되지 않습니다. **Java 21 이상 JDK**를 설치하고 `JAVA_HOME`을 지정한 뒤 아래 명령으로 빌드합니다. macOS 앱은 `./package-mac.sh`로 생성합니다.
@@ -23,7 +37,7 @@ cd MMM/app
 cd MMM/app
 ./demo.command      # 같은 고정 날짜 시연 모드
 ./run.command       # 실제 서울 날짜, 샘플 없는 일반 로컬 모드
-./build.sh          # Java 21 컴파일 + 101개 모델/기능 검사 + build/MMM.jar
+./build.sh          # Java 21 컴파일 + 101개 기존/206개 카탈로그 검사 + build/MMM.jar
 ./test-gui.sh       # 실제 데스크톱에서 Swing 통합 검사 73개
 ./package-mac.sh    # 런타임 포함 dist/MMM.app 생성 (이전 앱 묶음은 별도 이름으로 보관)
 ```

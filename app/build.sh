@@ -3,7 +3,14 @@ set -eu
 cd "$(dirname "$0")"
 if [ -n "${JAVA_HOME:-}" ] && [ -x "$JAVA_HOME/bin/javac" ]; then
   MMM_JDK="$JAVA_HOME"
+elif [ "$(uname -s)" = Darwin ] && [ -x /usr/libexec/java_home ]; then
+  MMM_JDK=$(/usr/libexec/java_home -v 21+ 2>/dev/null || true)
+elif command -v javac >/dev/null 2>&1; then
+  MMM_JDK=$(dirname "$(dirname "$(command -v javac)")")
 else
+  MMM_JDK=""
+fi
+if [ -z "${MMM_JDK:-}" ] && [ -d "$PWD/tools" ]; then
   MMM_JDK=$(find "$PWD/tools" -path '*/Contents/Home/bin/javac' -print -quit 2>/dev/null | sed 's|/bin/javac$||')
 fi
 if [ -z "${MMM_JDK:-}" ]; then
@@ -22,5 +29,6 @@ if [ -s build/test-sources.txt ]; then
   "$MMM_JDK/bin/java" -ea -Djava.awt.headless=true -cp build/classes:build/test-classes mmm.FeatureTest
   "$MMM_JDK/bin/java" -ea -Djava.awt.headless=true -cp build/classes:build/test-classes mmm.SoundShapeTest
   "$MMM_JDK/bin/java" -ea -Djava.awt.headless=true -cp build/classes:build/test-classes mmm.EnsembleDataTest
+  "$MMM_JDK/bin/java" -ea -Djava.awt.headless=true -cp build/classes:build/test-classes mmm.EmotionCatalogTest
 fi
 printf 'Built %s/build/MMM.jar\n' "$PWD"
