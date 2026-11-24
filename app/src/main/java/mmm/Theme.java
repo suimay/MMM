@@ -6,7 +6,8 @@ import javax.swing.border.*;
 import javax.swing.plaf.*;
 import javax.swing.plaf.basic.*;
 
-/** Small journal design system: quiet controls, deliberate spacing, one accent. */
+/** Legacy renderer theme. Colors, typography and geometry are replaceable implementation
+ * values, not redesign constraints. See docs/DESIGN.md (2026-11-24 design reset). */
 public final class Theme {
   public static final Color PAPER = new Color(246, 243, 235),
       SURFACE = new Color(255, 253, 248),
