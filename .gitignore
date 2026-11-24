@@ -3,3 +3,17 @@
 !/README.md
 !/app/
 !/downloads/
+!/pom.xml
+!/shared/
+!/server/
+!/mvnw.cmd
+!/mvnw
+!/compose.yaml
+!/build-m2.ps1
+!/REMOTE.md
+!/devserver/
+!/package-m2.ps1
+!/preview.cmd
+/downloads/*.jar
+/downloads/*.zip
+/downloads/*-SHA256.txt

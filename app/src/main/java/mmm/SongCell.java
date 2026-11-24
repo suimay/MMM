@@ -35,7 +35,7 @@ public final class SongCell extends JPanel implements ListCellRenderer<Song> {
     g.setColor(selected ? Theme.ORANGE : Theme.LINE);
     g.drawRoundRect(0, 4, w - 1, h - 9, 12, 12);
     Phrase latest = records.isEmpty() ? null : records.get(records.size() - 1);
-    if (latest != null) SoundShape.miniature(g, latest.notes(), 20, 26, 128, 54);
+    if (latest != null) SoundShape.miniature(g, latest.visualNotes(), 20, 26, 128, 54);
     g.setColor(Theme.INK);
     g.setFont(Theme.font(19, true));
     g.drawString(song.name(), 174, 43);

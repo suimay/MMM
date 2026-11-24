@@ -8,7 +8,7 @@ import java.util.*;
 import mmm.Model.*;
 
 /**
- * UTF-8 Properties, schema 1, cross-process lock + atomic replacement. Never overwrites corrupt
+ * UTF-8 Properties, schema 3 (reads schema 1/2), cross-process lock + atomic replacement. Never overwrites corrupt
  * input.
  */
 public final class LocalRepository implements Repository {
@@ -42,7 +42,7 @@ public final class LocalRepository implements Repository {
         } catch (Exception e) {
           throw new IOException("저장 파일을 읽을 수 없습니다. 원본을 보존했습니다.", e);
         }
-      if (Files.exists(file) && !p.getProperty("schema", "").equals("1"))
+      if (Files.exists(file) && !Set.of("1", "2", "3").contains(p.getProperty("schema", "")))
         throw new IOException("지원하지 않는 저장 형식입니다.");
       validate(p);
       T result;
@@ -52,11 +52,11 @@ public final class LocalRepository implements Repository {
         throw new IOException("데이터 검사 실패: " + e.getMessage(), e);
       }
       if (write) {
-        p.setProperty("schema", "1");
+        p.setProperty("schema", "3");
         Path temp = Files.createTempFile(directory, "mmm-", ".tmp");
         try {
           try (Writer w = Files.newBufferedWriter(temp)) {
-            p.store(w, "MMM local store - schema 1");
+            p.store(w, "MMM local store - schema 3");
           }
           try (FileChannel f = FileChannel.open(temp, StandardOpenOption.WRITE)) {
             f.force(true);
@@ -89,7 +89,8 @@ public final class LocalRepository implements Repository {
           Base64.getDecoder().decode(f[2]);
         } else if (key.startsWith("settings.")) {
           String[] f = fields(value);
-          new Settings(Integer.parseInt(f[0]), Integer.parseInt(f[1]), Boolean.parseBoolean(f[2]));
+          new Settings(Integer.parseInt(f[0]), Integer.parseInt(f[1]), Boolean.parseBoolean(f[2]),
+              f.length > 3 && Boolean.parseBoolean(f[3]), f.length > 4 ? Integer.parseInt(f[4]) : 4);
         } else if (key.startsWith("invite.")) {
           String[] f = fields(value);
           if (f.length != 2) throw new IllegalArgumentException("초대 형식");
@@ -126,7 +127,7 @@ public final class LocalRepository implements Repository {
         Boolean.parseBoolean(f[2]),
         Integer.parseInt(f[3]),
         Integer.parseInt(f[4]),
-        new HashSet<>(Arrays.asList(f[5].split(","))));
+        new HashSet<>(Arrays.asList(f[5].split(","))), f.length > 6 ? Integer.parseInt(f[6]) : 0);
   }
 
   private static String encode(Song s) {
@@ -140,7 +141,7 @@ public final class LocalRepository implements Repository {
         + "|"
         + s.instrument()
         + "|"
-        + String.join(",", new TreeSet<>(s.members()));
+        + String.join(",", new TreeSet<>(s.members())) + "|" + s.version();
   }
 
   public List<Song> songs(String user) throws IOException {
@@ -199,23 +200,42 @@ public final class LocalRepository implements Repository {
           m.add(user);
           p.setProperty(
               "song." + id,
-              encode(new Song(s.id(), s.name(), s.owner(), true, s.bpm(), s.instrument(), m)));
+              encode(new Song(s.id(), s.name(), s.owner(), true, s.bpm(), s.instrument(), m, s.version())));
           return null;
         });
   }
 
   private static Phrase phrase(String data) {
     String[] f = fields(data);
+    boolean extended = f.length == 11 && f[7].equals("2");
+    if (!extended && (f.length != 9 || !f[7].isEmpty()))
+      throw new IllegalArgumentException("지원하지 않는 기록 형식입니다.");
     List<NoteEvent> notes = new ArrayList<>();
     if (!f[8].isEmpty())
       for (String n : f[8].split(";")) {
         String[] v = n.split(",");
+        if (v.length != (extended ? 5 : 4)) throw new IllegalArgumentException("음 형식 오류");
         notes.add(
             new NoteEvent(
                 Integer.parseInt(v[0]),
                 Integer.parseInt(v[1]),
                 Integer.parseInt(v[2]),
-                Integer.parseInt(v[3])));
+                Integer.parseInt(v[3]), extended ? Articulation.valueOf(v[4]) : Articulation.NORMAL));
+      }
+    List<RestEvent> rests = new ArrayList<>();
+    List<ExpressionRange> expressions = new ArrayList<>();
+    if (extended && !f[9].isEmpty())
+      for (String r : f[9].split(";")) {
+        String[] v = r.split(",");
+        if (v.length != 2) throw new IllegalArgumentException("쉼 형식 오류");
+        rests.add(new RestEvent(Integer.parseInt(v[0]), Integer.parseInt(v[1])));
+      }
+    if (extended && !f[10].isEmpty())
+      for (String r : f[10].split(";")) {
+        String[] v = r.split(",");
+        if (v.length != 5) throw new IllegalArgumentException("표현 형식 오류");
+        expressions.add(new ExpressionRange(Integer.parseInt(v[0]), Integer.parseInt(v[1]),
+            ExpressionKind.valueOf(v[2]), Integer.parseInt(v[3]), Integer.parseInt(v[4])));
       }
     return new Phrase(
         f[0],
@@ -225,7 +245,7 @@ public final class LocalRepository implements Repository {
         Integer.parseInt(f[4]),
         Integer.parseInt(f[5]),
         untext(f[6]),
-        notes);
+        notes, rests, expressions);
   }
 
   public List<Phrase> phrases(String id) throws IOException {
@@ -248,26 +268,7 @@ public final class LocalRepository implements Repository {
           if (current != expected)
             throw new IOException("다른 창에서 저장본이 바뀌었습니다. 초안을 유지했습니다. 재조회 후 다시 편집하세요.");
           Phrase f = draft.versioned(current + 1);
-          StringJoiner n = new StringJoiner(";");
-          for (NoteEvent e : f.notes())
-            n.add(e.start() + "," + e.duration() + "," + e.pitch() + "," + e.velocity());
-          p.setProperty(
-              key,
-              f.songId()
-                  + "|"
-                  + f.author()
-                  + "|"
-                  + f.date()
-                  + "|"
-                  + f.version()
-                  + "|"
-                  + f.bpm()
-                  + "|"
-                  + f.instrument()
-                  + "|"
-                  + text(f.memo())
-                  + "||"
-                  + n);
+          p.setProperty(key, encodePhrase(f));
           return f;
         });
   }
@@ -308,7 +309,12 @@ public final class LocalRepository implements Repository {
   private static String encodePhrase(Phrase f) {
     StringJoiner notes = new StringJoiner(";");
     for (NoteEvent n : f.notes())
-      notes.add(n.start() + "," + n.duration() + "," + n.pitch() + "," + n.velocity());
+      notes.add(n.start() + "," + n.duration() + "," + n.pitch() + "," + n.velocity() + "," + n.articulation());
+    StringJoiner rests = new StringJoiner(";");
+    for (RestEvent r : f.rests()) rests.add(r.start() + "," + r.duration());
+    StringJoiner expressions = new StringJoiner(";");
+    for (ExpressionRange e : f.expressions())
+      expressions.add(e.start() + "," + e.end() + "," + e.kind() + "," + e.startVelocity() + "," + e.endVelocity());
     return f.songId()
         + "|"
         + f.author()
@@ -322,8 +328,8 @@ public final class LocalRepository implements Repository {
         + f.instrument()
         + "|"
         + text(f.memo())
-        + "||"
-        + notes;
+        + "|2|"
+        + notes + "|" + rests + "|" + expressions;
   }
 
   public void seedDemo(LocalDate today) throws IOException {
@@ -344,7 +350,7 @@ public final class LocalRepository implements Repository {
                       "demo",
                       true,
                       100,
-                      12,
+                      33,
                       Set.of("demo", "star", "moon")));
           String[] memos = {
             "햇살 좋은 아침", "가벼운 발걸음", "커피 한 잔의 여유", "비 오는 창가", "문득 떠오른 기쁨", "친구와 느린 산책", "오늘도 수고했어"
@@ -373,7 +379,7 @@ public final class LocalRepository implements Repository {
                       true,
                       existing.bpm(),
                       existing.instrument(),
-                      m);
+                      m, existing.version());
               p.setProperty(k, encode(existing));
             }
             for (int ago = 13; ago >= 0; ago--) {
@@ -384,13 +390,13 @@ public final class LocalRepository implements Repository {
                 List<NoteEvent> notes = new ArrayList<>();
                 int program = existing.instrument();
                 if (author.equals("star")) {
-                  program = 12;
+                  program = 33;
                   notes.add(new NoteEvent(0, 960, 48 + (pattern % 3) * 2, 58));
                   notes.add(new NoteEvent(960, 960, 55, 55));
                 } else if (author.equals("moon")) {
-                  program = 10;
+                  program = Model.DRUMS;
                   for (int b = 0; b < 4; b++)
-                    notes.add(new NoteEvent(b * 480 + 240, 240, new int[] {72, 76, 79, 81}[b], 46));
+                    notes.add(new NoteEvent(b * 480, 120, new int[] {36, 42, 38, 46}[b], 70));
                 } else
                   for (int b = 0; b < 4; b++)
                     notes.add(
@@ -433,7 +439,7 @@ public final class LocalRepository implements Repository {
                   actual.shared(),
                   bpm,
                   instrument,
-                  actual.members());
+                  actual.members(), actual.version() + 1);
           p.setProperty("song." + actual.id(), encode(next));
           return next;
         });
@@ -453,7 +459,7 @@ public final class LocalRepository implements Repository {
           p.setProperty(
               "song." + id,
               encode(
-                  new Song(id, s.name(), s.owner(), s.shared(), s.bpm(), s.instrument(), members)));
+                  new Song(id, s.name(), s.owner(), s.shared(), s.bpm(), s.instrument(), members, s.version())));
           return null;
         });
   }
@@ -494,7 +500,7 @@ public final class LocalRepository implements Repository {
               "song." + s.id(),
               encode(
                   new Song(
-                      s.id(), s.name(), s.owner(), s.shared(), s.bpm(), s.instrument(), members)));
+                      s.id(), s.name(), s.owner(), s.shared(), s.bpm(), s.instrument(), members, s.version())));
           return null;
         });
   }

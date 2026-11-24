@@ -8,6 +8,15 @@ import javax.swing.plaf.basic.*;
 
 /** Small journal design system: quiet controls, deliberate spacing, one accent. */
 public final class Theme {
+  private static Font regular = loadFont("/fonts/Pretendard-Regular.otf", Font.PLAIN);
+  private static Font boldFont = loadFont("/fonts/Pretendard-Bold.otf", Font.BOLD);
+
+  private static Font loadFont(String resource, int style) {
+    try (java.io.InputStream input = Theme.class.getResourceAsStream(resource)) {
+      if (input != null) return Font.createFont(Font.TRUETYPE_FONT, input);
+    } catch (Exception ignored) { }
+    return new Font("Dialog", style, 14);
+  }
   public static final Color PAPER = new Color(246, 243, 235),
       SURFACE = new Color(255, 253, 248),
       INK = new Color(46, 45, 40),
@@ -17,7 +26,7 @@ public final class Theme {
       WASH = new Color(239, 232, 218);
 
   public static Font font(int size, boolean bold) {
-    return new Font("Apple SD Gothic Neo", bold ? Font.BOLD : Font.PLAIN, size);
+    return (bold ? boldFont : regular).deriveFont((float) size);
   }
 
   public static void install() {

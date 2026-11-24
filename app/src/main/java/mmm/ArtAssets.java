@@ -18,6 +18,8 @@ public final class ArtAssets {
   public static String instrumentName(int program) {
     return switch (program) {
       case 0 -> "피아노";
+      case 33 -> "베이스";
+      case Model.DRUMS -> "드럼";
       case 12 -> "마림바";
       case 24 -> "기타";
       case 10 -> "오르골";
@@ -85,16 +87,23 @@ public final class ArtAssets {
     g.setColor(Theme.WASH);
     g.fillRoundRect(0, 0, 192, 192, 30, 30);
     g.setStroke(new BasicStroke(3));
-    if (program == 24) {
+    if (program == Model.DRUMS) {
+      g.setColor(new Color(49,52,57));g.fillRoundRect(10,14,172,164,22,22);
+      for(int[] drum:new int[][]{{42,100,49},{119,100,49},{80,125,60},{68,63,40},{112,63,40}}) {
+        g.setColor(new Color(189,193,191));g.fillOval(drum[0]-drum[2]/2,drum[1]-drum[2]/3,drum[2],drum[2]*2/3);
+        g.setColor(Theme.INK);g.drawOval(drum[0]-drum[2]/2,drum[1]-drum[2]/3,drum[2],drum[2]*2/3);
+      }
+      g.setColor(new Color(213,180,87));g.fillOval(17,35,51,27);g.fillOval(126,35,51,27);g.fillOval(17,80,40,22);
+    } else if (program == 24 || program == 33) {
       g.rotate(-.55, 96, 96);
-      g.setColor(new Color(191, 130, 81));
+      g.setColor(program==33?new Color(151,79,37):new Color(191, 130, 81));
       g.fillOval(39, 83, 89, 89);
       g.fillOval(48, 58, 71, 71);
       g.setColor(Theme.INK);
       g.fillRoundRect(75, 19, 18, 94, 5, 5);
-      g.fillOval(69, 96, 31, 31);
+      if(program==24)g.fillOval(69, 96, 31, 31);else {g.fillRect(67,109,35,6);g.fillRect(67,127,35,6);}
       g.setColor(Theme.SURFACE);
-      for (int i = 0; i < 4; i++) g.drawLine(79 + i * 3, 23, 79 + i * 3, 146);
+      for (int i = 0; i < (program==33?4:6); i++) g.drawLine(77 + i * 3, 23, 77 + i * 3, 146);
     } else if (program == 12) {
       for (int i = 0; i < 7; i++) {
         g.setColor(i % 2 == 0 ? new Color(156, 102, 63) : new Color(198, 143, 91));
@@ -134,11 +143,11 @@ public final class ArtAssets {
   public static void main(String[] args) throws Exception {
     Path directory = Path.of(args[0]);
     Files.createDirectories(directory);
-    for (int p : new int[] {0, 12, 24, 10})
+    for (int p : new int[] {0, 12, 24, 10,33,Model.DRUMS})
       ImageIO.write(
           drawInstrument(p), "png", directory.resolve("instrument-" + p + ".png").toFile());
     for (String user : java.util.List.of("demo", "star", "moon"))
       ImageIO.write(drawAvatar(user), "png", directory.resolve("avatar-" + user + ".png").toFile());
-    System.out.println("Created 7 original local image assets.");
+    System.out.println("Created 9 original local image assets.");
   }
 }

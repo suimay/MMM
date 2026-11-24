@@ -1,0 +1,42 @@
+<configuration>
+  <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+  <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+  <springProperty scope="context" name="MMM_LOG_FOLDER" source="mmm.logs.dir" defaultValue="${user.home}/.mmm/logs"/>
+  <appender name="SERVER_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <file>${MMM_LOG_FOLDER}/server.log</file>
+    <append>true</append>
+    <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+      <fileNamePattern>${MMM_LOG_FOLDER}/archive/server.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+      <maxFileSize>10MB</maxFileSize><maxHistory>14</maxHistory><totalSizeCap>200MB</totalSizeCap>
+    </rollingPolicy>
+    <encoder><charset>UTF-8</charset><pattern>%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX,Asia/Seoul} %-5level %logger{40} - %msg%n</pattern></encoder>
+  </appender>
+  <appender name="ACTIVITY_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <file>${MMM_LOG_FOLDER}/activity.log</file>
+    <append>true</append>
+    <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+      <fileNamePattern>${MMM_LOG_FOLDER}/archive/activity.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+      <maxFileSize>10MB</maxFileSize><maxHistory>14</maxHistory><totalSizeCap>200MB</totalSizeCap>
+    </rollingPolicy>
+    <encoder><charset>UTF-8</charset><pattern>%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX,Asia/Seoul} %-5level ACTIVITY %msg%n</pattern></encoder>
+  </appender>
+  <appender name="ACTIVITY_CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder><charset>UTF-8</charset><pattern>%d{HH:mm:ss.SSS,Asia/Seoul} %-5level ACTIVITY %msg%n</pattern></encoder>
+  </appender>
+  <!-- Windows console selection can suspend stdout indefinitely. Only console
+       copies may be dropped; file appenders stay on the request thread. -->
+  <appender name="SERVER_CONSOLE_ASYNC" class="ch.qos.logback.classic.AsyncAppender">
+    <queueSize>256</queueSize><discardingThreshold>0</discardingThreshold>
+    <neverBlock>true</neverBlock><maxFlushTime>1000</maxFlushTime>
+    <appender-ref ref="CONSOLE"/>
+  </appender>
+  <appender name="ACTIVITY_CONSOLE_ASYNC" class="ch.qos.logback.classic.AsyncAppender">
+    <queueSize>256</queueSize><discardingThreshold>0</discardingThreshold>
+    <neverBlock>true</neverBlock><maxFlushTime>1000</maxFlushTime>
+    <appender-ref ref="ACTIVITY_CONSOLE"/>
+  </appender>
+  <logger name="mmm.activity" level="INFO" additivity="false">
+    <appender-ref ref="ACTIVITY_FILE"/><appender-ref ref="ACTIVITY_CONSOLE_ASYNC"/>
+  </logger>
+  <root level="INFO"><appender-ref ref="SERVER_FILE"/><appender-ref ref="SERVER_CONSOLE_ASYNC"/></root>
+</configuration>

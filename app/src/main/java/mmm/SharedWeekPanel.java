@@ -47,7 +47,7 @@ public final class SharedWeekPanel extends JPanel {
                 + week.plusDays(6)
                 + " · 공통 "
                 + song.bpm()
-                + " BPM · 로컬 모의"));
+                + " BPM · " + (app.service.remote() ? "원격 공동 기록" : "로컬 모의")));
     heading.add(title);
     heading.add(
         Theme.row(
@@ -168,13 +168,8 @@ public final class SharedWeekPanel extends JPanel {
     add(footer, BorderLayout.SOUTH);
     int own = 0;
     for (int i = 0; i < members.size(); i++)
-      if (members.get(i).id().equals(app.service.user())) own = i;
-    int day =
-        app.service.today().isBefore(week)
-            ? 1
-            : app.service.today().isAfter(week.plusDays(6))
-                ? 7
-                : app.service.today().getDayOfWeek().getValue();
+      if (members.get(i).id().equals(app.selectedAuthor())) own = i;
+    int day = app.selectedDate(week).getDayOfWeek().getValue();
     table.changeSelection(own, day, false, false);
     selection();
     timer =
@@ -199,6 +194,7 @@ public final class SharedWeekPanel extends JPanel {
     if (row < 0 || row >= members.size() || inspector == null) return;
     selectedMember = members.get(row);
     selectedDate = week.plusDays(Math.max(0, col - 1));
+    app.rememberSelection(selectedDate, selectedMember.id());
     selectedPhrase = EnsembleData.find(records, selectedMember.id(), selectedDate);
     boolean future = selectedDate.isAfter(app.service.today());
     status.setText(
@@ -351,7 +347,7 @@ public final class SharedWeekPanel extends JPanel {
       g.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 8, 8);
       if (future) g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, .35f));
       if (value != null) {
-        SoundShape.miniature(g, value.notes(), 7, 18, getWidth() - 14, 40);
+        SoundShape.miniature(g, value.visualNotes(), 7, 18, getWidth() - 14, 40);
         g.setColor(Theme.MUTED);
         g.setFont(Theme.font(11, false));
         g.drawString(ArtAssets.instrumentName(value.instrument()), 7, getHeight() - 20);

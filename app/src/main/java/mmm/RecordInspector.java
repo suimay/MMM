@@ -48,6 +48,17 @@ public final class RecordInspector extends JPanel implements Scrollable {
     canvas =
         new NoteCanvas(
             () -> phrase == null ? List.of() : phrase.notes(), false, null, this::selectNote);
+    canvas.restSource = () -> phrase == null ? List.of() : phrase.rests();
+    canvas.expressionSource = () -> phrase == null ? List.of() : phrase.expressions();
+    canvas.restSelect = i -> {
+      if (phrase == null || i < 0 || i >= phrase.rests().size()) return;
+      selectNote(-1);
+      RestEvent r = phrase.rests().get(i);
+      selected.setText("명시적인 쉼 · 읽기 전용");
+      start.setText("시작  " + number(r.start() / 480.0 + 1) + "박");
+      duration.setText("길이  " + number(r.duration() / 480.0) + "박");
+      velocity.setText("무음");
+    };
     canvas.setMinimumSize(new Dimension(160, 135));
     canvas.setPreferredSize(new Dimension(compact ? 270 : 550, compact ? 150 : 230));
     JPanel info = Theme.card(new BorderLayout(0, 7));
@@ -148,6 +159,7 @@ public final class RecordInspector extends JPanel implements Scrollable {
   public void selectNote(int index) {
     if (phrase == null || index < 0 || index >= phrase.notes().size()) index = -1;
     canvas.inspected = index;
+    if (index >= 0) canvas.selectedRest = -1;
     syncing = true;
     if (index < 0) noteTable.clearSelection();
     else {
@@ -163,10 +175,11 @@ public final class RecordInspector extends JPanel implements Scrollable {
       velocity.setText("세기  —");
     } else {
       NoteEvent n = phrase.notes().get(index);
-      selected.setText(Piano.solfege(n.pitch()) + " · " + NoteCanvas.noteName(n.pitch()));
+      selected.setText(Piano.solfege(n.pitch()) + " · " + NoteCanvas.noteName(n.pitch())
+          + (n.articulation() == Articulation.STACCATO ? " · 스타카토" : ""));
       start.setText("시작  " + number(n.start() / 480.0 + 1) + "박");
       duration.setText("길이  " + number(n.duration() / 480.0) + "박");
-      velocity.setText("세기  " + n.velocity() + " / 127");
+      velocity.setText("세기  " + phrase.effectiveVelocity(n) + " / 127");
     }
     canvas.repaint();
   }
@@ -195,6 +208,7 @@ public final class RecordInspector extends JPanel implements Scrollable {
         value == null ? "기록 없음 · 쉼 한 마디" : value.memo().isBlank() ? "소리만 남긴 날이에요." : value.memo());
     memo.setCaretPosition(0);
     canvas.playhead = -1;
+    canvas.selectedRest = -1;
     syncing = true;
     model.fireTableDataChanged();
     syncing = false;
@@ -217,7 +231,7 @@ public final class RecordInspector extends JPanel implements Scrollable {
             phrase.bpm(),
             phrase.instrument(),
             phrase.memo(),
-            List.of(new NoteEvent(0, n.duration(), n.pitch(), n.velocity())));
+            List.of(new NoteEvent(0, n.duration(), n.pitch(), phrase.effectiveVelocity(n), n.articulation())));
     auditioning = true;
     auditionStart = n.start();
     onAudition.run();
@@ -258,7 +272,7 @@ public final class RecordInspector extends JPanel implements Scrollable {
         case 0 -> Piano.solfege(n.pitch()) + " · " + NoteCanvas.noteName(n.pitch());
         case 1 -> n.start() / 480.0 + 1;
         case 2 -> n.duration() / 480.0;
-        default -> n.velocity();
+        default -> phrase.effectiveVelocity(n);
       };
     }
   }

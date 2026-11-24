@@ -22,5 +22,11 @@ if [ -s build/test-sources.txt ]; then
   "$MMM_JDK/bin/java" -ea -Djava.awt.headless=true -cp build/classes:build/test-classes mmm.FeatureTest
   "$MMM_JDK/bin/java" -ea -Djava.awt.headless=true -cp build/classes:build/test-classes mmm.SoundShapeTest
   "$MMM_JDK/bin/java" -ea -Djava.awt.headless=true -cp build/classes:build/test-classes mmm.EnsembleDataTest
+  "$MMM_JDK/bin/java" -ea -Djava.awt.headless=true -cp build/classes:build/test-classes mmm.ExpressionTest
+  "$MMM_JDK/bin/java" -ea -Djava.awt.headless=true -cp build/classes:build/test-classes mmm.WireJsonTest
+  "$MMM_JDK/bin/java" -ea -Djava.awt.headless=true -cp build/classes:build/test-classes mmm.PianoTest
+  "$MMM_JDK/bin/java" -ea -Djava.awt.headless=true -cp build/classes:build/test-classes mmm.PitchRangeTest
+  "$MMM_JDK/bin/java" -ea -Djava.awt.headless=true -cp build/classes:build/test-classes mmm.InstrumentSoundTest
+  "$MMM_JDK/bin/java" -ea -Djava.awt.headless=true -cp build/classes:build/test-classes mmm.StringInstrumentTest
 fi
 printf 'Built %s/build/MMM.jar\n' "$PWD"
