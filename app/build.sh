@@ -19,5 +19,6 @@ if [ -s build/test-sources.txt ]; then
   "$MMM_JDK/bin/javac" --release 21 -encoding UTF-8 -cp build/classes -d build/test-classes @build/test-sources.txt
   "$MMM_JDK/bin/java" -ea -Djava.awt.headless=true -cp build/classes:build/test-classes mmm.ModelRepositoryTest
   "$MMM_JDK/bin/java" -ea -Djava.awt.headless=true -cp build/classes:build/test-classes mmm.FeatureTest
+  "$MMM_JDK/bin/java" -ea -Djava.awt.headless=true -cp build/classes:build/test-classes mmm.SoundShapeTest
 fi
 printf 'Built %s/build/MMM.jar\n' "$PWD"
