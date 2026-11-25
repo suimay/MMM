@@ -6,8 +6,6 @@
 
 ![MMM 편집 화면](app/docs/S06-editor.png)
 
-> **디자인 재탐색 중 (2026-11-24):** 기존 팔레트·m 로고·물방울 윤곽·글꼴·배치의 유지 제약을 해제했습니다. 아래 캡처와 기능 설명은 현재 구현의 기록입니다. 새 디자인은 [최신 디자인 지침](app/docs/DESIGN.md)을 따릅니다.
-
 ## 시작하기
 
 Java 21 이상이 필요합니다. JDK를 설치하고 `JAVA_HOME`을 지정하세요.
@@ -40,6 +38,30 @@ java -jar MMM-2.3.1.jar --demo-date=2026-11-01
 - 개인 2곡·공동 2곡, 총 112개 샘플 기록
 - 로컬 곡 관리·초대·참여, 시간 비례 악보·인쇄, MIDI 내보내기
 - 날짜·권한·버전 검사, 원자적 파일 저장, 이전 정상 파일 백업
+- 연구 근거를 확인하며 분위기 태그로 화음을 찾아 미리 듣고, 오늘의 한 마디에 삽입
+
+## 감정·화음 기준표와 개발 안내
+
+**[전체 브리핑](app/docs/emotion/README.md)**에서 기준표·파일 구조·Java 연결·검증 계획을 읽을 수 있습니다. 활성 태그 5개, 검증 대기 태그 5개, C 계열 화음 7개와 문헌 근거 연결 9개를 제공합니다. 연구의 평균 평정과 앱에서 재생하는 미검증 샘플을 별도로 관리합니다.
+
+오늘 편집 화면의 **감정으로 화음 찾기**에서 태그 선택 → 화음 듣기 → 시작 박·길이 선택 → 이 화음 넣기로 사용합니다. 한 번의 실행 취소로 삽입한 화음 전체를 되돌릴 수 있습니다.
+
+```sh
+cd MMM/app
+./review-emotions.command
+```
+
+이 명령은 소스를 빌드하고 화음 미리 듣기 창을 엽니다. macOS에서는 문서 폴더와 README도 함께 엽니다. Java 21 이상 JDK가 필요합니다. 소스 빌드 없이 확인하려면 **[감정·화음 기능 포함 JAR](downloads/MMM-emotion-preview.jar?raw=true)**를 Java 21 이상에서 실행하세요. 위의 기존 2.3.1 JAR에는 이 기능이 없습니다.
+
+```sh
+java -jar MMM-emotion-preview.jar --emotion-palette
+java -jar MMM-emotion-preview.jar --demo-date=2026-11-01
+```
+
+- [화음별 기준표와 채택 규칙](app/docs/emotion/CRITERIA.md)
+- [논문 7편·DOI·적용 범위](app/docs/emotion/SOURCES.md)
+- [검증 결과와 사용자 청취 실험 계획](app/docs/emotion/VALIDATION.md)
+- [앱이 읽는 태그·화음·근거 데이터](app/resources/mmm/emotion)
 
 ## 구현 범위
 
