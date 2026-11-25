@@ -43,7 +43,7 @@ public final class MMM extends JFrame {
   private final Map<String, List<Phrase>> libraryRecords = new HashMap<>();
 
   public MMM(MusicService service, Path dataPath) {
-    super("MMM · 음음음 2.2");
+    super("MMM · 음음음 2.3");
     this.service = service;
     this.dataPath = dataPath;
     this.week = Model.monday(service.today());
@@ -104,6 +104,9 @@ public final class MMM extends JFrame {
             if (!busy)
               guard(
                   () -> {
+                    if (viewerTimer != null) viewerTimer.stop();
+                    if (editor != null) editor.dispose();
+                    stopSound();
                     midi.close();
                     dispose();
                   });
@@ -197,7 +200,7 @@ public final class MMM extends JFrame {
     T run() throws Exception;
   }
 
-  private <T> void work(Job<T> task, Consumer<T> success) {
+  <T> void work(Job<T> task, Consumer<T> success) {
     if (busy) return;
     busy = true;
     glass.setVisible(true);
@@ -259,11 +262,13 @@ public final class MMM extends JFrame {
           case "S11" -> "악보·출력";
           case "S12" -> "설정·계정";
           case "S13" -> "도움말";
+          case "S14" -> "소리 일기장";
           default -> "하루 한 마디";
         });
     back.setVisible(!id.equals("S01") && !id.equals("S04"));
     for (ActionListener listener : back.getActionListeners()) back.removeActionListener(listener);
-    boolean toWeek = current != null && Set.of("S06", "S07", "S09", "S10", "S11").contains(id);
+    boolean toWeek =
+        current != null && Set.of("S06", "S07", "S09", "S10", "S11", "S14").contains(id);
     back.setText(toWeek ? "‹ 주간으로" : "‹ 보관함");
     back.addActionListener(
         e -> guard(id.equals("S07") ? detailBack : toWeek ? this::week : this::library));
@@ -305,50 +310,26 @@ public final class MMM extends JFrame {
   }
 
   private void start() {
-    JPanel p = Theme.page("S01", "소리로 남기는, 나의 하루.", "잘 연주하지 않아도 괜찮아요. 하루 한 마디, 음…음(音)음.");
-    JPanel c = Theme.column();
-    c.add(Box.createVerticalStrut(20));
-    c.add(Theme.label("mmm", 72));
-    c.add(Box.createVerticalStrut(20));
-    c.add(Theme.label("먼저, 아무 건반이나 눌러 보세요.", 22));
-    c.add(Box.createVerticalStrut(25));
-    JComboBox<String> sounds = new JComboBox<>(INSTRUMENT_NAMES);
-    JLabel picture = new JLabel(ArtAssets.instrument(0, 94));
-    c.add(Theme.row(picture, new JLabel("체험 악기"), sounds));
-    trial = new Piano(() -> true, n -> midi.on(n, PROGRAMS[sounds.getSelectedIndex()]), midi::off);
-    sounds.addItemListener(
-        e -> {
-          if (e.getStateChange() == ItemEvent.SELECTED) {
-            trial.releaseAll();
-            midi.stop();
-            picture.setIcon(ArtAssets.instrument(PROGRAMS[sounds.getSelectedIndex()], 94));
-          }
-        });
-    trial.setMaximumSize(new Dimension(1000, 140));
-    c.add(trial);
-    c.add(Box.createVerticalStrut(28));
-    c.add(
-        Theme.row(
-            Theme.primary("오늘 기록 시작", this::library),
+    ProloguePanel next =
+        new ProloguePanel(
+            this,
+            this::library,
             service.demo
-                ? Theme.button(
-                    "샘플 바로 듣기",
-                    () ->
-                        work(
-                            () -> {
-                              service.login("demo", "demo1234".toCharArray());
-                              return service.repository.settings("demo");
-                            },
-                            value -> {
-                              settings = value;
-                              midi.volume(value.volume());
-                              library();
-                            }))
-                : Theme.button("로그인", () -> login("")),
-            Theme.button("처음이라면 · 1분 도움말", this::help)));
-    c.add(new JLabel("A S D F G H J K  ·  건반을 클릭하면 키보드 입력을 받을 수 있어요."));
-    p.add(c);
-    show("S01", p);
+                ? () ->
+                    work(
+                        () -> {
+                          service.login("demo", "demo1234".toCharArray());
+                          return service.repository.settings("demo");
+                        },
+                        value -> {
+                          settings = value;
+                          midi.volume(value.volume());
+                          library();
+                        })
+                : () -> login(""),
+            this::help);
+    show("S01", next);
+    trial = next.piano;
   }
 
   private void login(String id) {
@@ -602,158 +583,33 @@ public final class MMM extends JFrame {
           currentMembers = service.participants(current.id());
           return service.phrases(current.id());
         },
-        records -> {
-          boolean shared = current.shared();
-          if (shared) {
-            show("S08", new SharedWeekPanel(this, current, records, currentMembers, week));
-            return;
-          }
-          JPanel p =
-              Theme.page(
-                  shared ? "S08" : "S05",
-                  current.name(),
-                  week + " — " + week.plusDays(6) + "  ·  오늘만 편집 / 지난 날은 감상 / 미래는 잠금");
-          JPanel body = new JPanel(new BorderLayout(10, 15));
-          body.add(
-              Theme.row(
-                  Theme.button(
-                      "← 지난주",
-                      () -> {
-                        week = week.minusWeeks(1);
-                        week();
-                      }),
-                  Theme.button(
-                      "이번 주",
-                      () -> {
-                        week = Model.monday(service.today());
-                        week();
-                      }),
-                  Theme.button(
-                      "다음주 →",
-                      () -> {
-                        week = week.plusWeeks(1);
-                        week();
-                      }),
-                  Theme.button("새로고침", this::week)),
-              BorderLayout.NORTH);
-          JPanel grid = new JPanel(new GridLayout(1, 7, 10, 0));
-          grid.setPreferredSize(new Dimension(900, 236));
-          for (int i = 0; i < 7; i++) {
-            LocalDate date = week.plusDays(i);
-            Phrase own = find(records, service.user(), date);
-            grid.add(
-                new DayCard(
-                    date,
-                    own,
-                    service.today(),
-                    () -> {
-                      if (date.equals(service.today())) edit(own, date);
-                      else detail(own, date, service.user());
-                    }));
-          }
-          JPanel stage = new JPanel(new BorderLayout(0, 18));
-          stage.add(grid, BorderLayout.NORTH);
-          JPanel journal = Theme.card(new BorderLayout(0, 8));
-          long count =
-              records.stream()
-                  .filter(
-                      f ->
-                          f.author().equals(service.user())
-                              && !f.date().isBefore(week)
-                              && f.date().isBefore(week.plusDays(7)))
-                  .count();
-          journal.add(Theme.label("한 주에 남긴 " + count + "개의 마디", 18), BorderLayout.NORTH);
-          JTextArea words = new JTextArea();
-          words.setEditable(false);
-          words.setOpaque(false);
-          words.setFont(Theme.font(14, false));
-          words.setForeground(Theme.MUTED);
-          words.setLineWrap(true);
-          words.setWrapStyleWord(true);
-          StringJoiner lines = new StringJoiner("   /   ");
-          records.stream()
-              .filter(
-                  f ->
-                      f.author().equals(service.user())
-                          && !f.date().isBefore(week)
-                          && f.date().isBefore(week.plusDays(7))
-                          && !f.memo().isBlank())
-              .forEach(f -> lines.add(f.date().getDayOfMonth() + "일 · " + f.memo()));
-          words.setText(lines.length() == 0 ? "작은 소리 하나로, 오늘을 기억해 보세요." : lines.toString());
-          journal.add(words);
-          journal.setPreferredSize(new Dimension(900, 120));
-          JPanel noteWrap = new JPanel(new BorderLayout());
-          noteWrap.add(journal, BorderLayout.NORTH);
-          stage.add(noteWrap);
-          body.add(stage);
-          if (shared) {
-            stage.remove(noteWrap);
-            String[] cols = {"참여자 · 모의", "월", "화", "수", "목", "금", "토", "일"};
-            List<String> members = current.members().stream().sorted().toList();
-            Object[][] rows = new Object[members.size()][8];
-            for (int r = 0; r < members.size(); r++) {
-              rows[r][0] = members.get(r);
-              for (int d = 0; d < 7; d++)
-                rows[r][d + 1] =
-                    find(records, members.get(r), week.plusDays(d)) == null ? "쉼" : "● 기록";
-            }
-            JTable table =
-                new JTable(rows, cols) {
-                  public boolean isCellEditable(int r, int c) {
-                    return false;
-                  }
-                };
-            table.setRowHeight(32);
-            table.addMouseListener(
-                new MouseAdapter() {
-                  public void mouseClicked(MouseEvent e) {
-                    int r = table.rowAtPoint(e.getPoint()), c = table.columnAtPoint(e.getPoint());
-                    if (r >= 0 && c > 0) {
-                      LocalDate date = week.plusDays(c - 1);
-                      if (!date.isAfter(service.today()))
-                        detail(find(records, members.get(r), date), date, members.get(r));
-                    }
-                  }
-                });
-            JScrollPane sc = new JScrollPane(table);
-            sc.setPreferredSize(new Dimension(800, 130));
-            body.add(sc, BorderLayout.SOUTH);
-          }
-          p.add(body);
-          JPanel weekFooter = Theme.column();
-          weekFooter.add(new Transport(this, "주간 재생", () -> playWeek(records)));
-          weekFooter.add(
-              Theme.row(
-                  find(records, service.user(), service.today()) != null
-                      ? Theme.button(
-                          "저장본 감상",
-                          () ->
-                              detail(
-                                  find(records, service.user(), service.today()),
-                                  service.today(),
-                                  service.user()))
-                      : new JLabel(""),
-                  shared
-                      ? Theme.button("오늘 공동 합주", () -> ensemble(records))
-                      : Theme.muted("날짜를 눌러 그날의 소리를 만나 보세요.")));
-          JButton songActions = Theme.button("곡 메뉴 ···", () -> {});
-          songActions.addActionListener(
-              e -> {
-                JPopupMenu actions = new JPopupMenu();
-                popup(actions, "악보·출력", () -> placeholder(false));
-                popup(actions, "곡·참여자 관리", () -> placeholder(true));
-                if (shared) popup(actions, "초대", () -> inviteDialog(current));
-                actions.show(songActions, 0, songActions.getHeight());
-              });
-          JPanel navigation = new JPanel(new BorderLayout());
-          Component dates = body.getComponent(0);
-          body.remove(dates);
-          navigation.add(dates);
-          navigation.add(songActions, BorderLayout.EAST);
-          body.add(navigation, BorderLayout.NORTH);
-          p.add(weekFooter, BorderLayout.SOUTH);
-          show(shared ? "S08" : "S05", p);
-        });
+        records ->
+            show(
+                current.shared() ? "S08" : "S05",
+                current.shared()
+                    ? new SharedWeekPanel(this, current, records, currentMembers, week)
+                    : new PersonalWeekPanel(this, current, records, week)));
+  }
+
+  void showJournal(List<Phrase> records) {
+    show("S14", new JournalPanel(this, current, records, currentMembers, week, this::week));
+  }
+
+  void showScore() {
+    score();
+  }
+
+  public void playFrom(
+      List<MidiEngine.Part> parts,
+      int length,
+      int bpm,
+      Map<Integer, Integer> levels,
+      long startTick) {
+    try {
+      midi.playFrom(parts, length, bpm, levels, startTick);
+    } catch (Exception e) {
+      error(e);
+    }
   }
 
   private Phrase find(List<Phrase> records, String user, LocalDate date) {
@@ -866,7 +722,7 @@ public final class MMM extends JFrame {
                 + " · 읽기 전용");
     RecordInspector inspector = new RecordInspector(this);
     inspector.setRecord(value, date, member, current.bpm(), current.instrument());
-    p.add(inspector);
+    p.add(new JScrollPane(inspector));
     JPanel footer = Theme.column();
     footer.add(
         new Transport(
