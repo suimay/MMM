@@ -24,7 +24,7 @@ public final class ComponentGuide extends JPanel {
         "로그인",
         "JTextField, JPasswordField, JButton, JLabel",
         "ActionListener, WindowListener",
-        "아이디·비밀번호 검증 후 로컬 로그인"),
+        "선택한 로컬 또는 원격 모드에서 아이디·비밀번호 검증 후 로그인"),
     new Page(
         "S03",
         "회원가입",
@@ -48,7 +48,7 @@ public final class ComponentGuide extends JPanel {
         "오늘의 한 마디",
         "JPanel, JSlider, JSpinner, JComboBox, JTextField",
         "KeyListener, MouseListener, MouseMotionListener, ChangeListener, DocumentListener",
-        "덩어리·꼬리 드래그, 길이·높이·세기 조절, 비교·저장"),
+        "덩어리·꼬리 드래그, 쉼·스타카토·구간 크레센도, 비교·저장"),
     new Page(
         "S07",
         "기록 상세·감상",

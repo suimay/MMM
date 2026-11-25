@@ -24,7 +24,7 @@ public final class PersonalWeekPanel extends JPanel {
     this.song = song;
     this.records = List.copyOf(records);
     this.week = week;
-    selected = week;
+    selected = app.selectedDate(week);
     setBorder(BorderFactory.createEmptyBorder(24, 30, 20, 30));
     JPanel title = Theme.column();
     title.add(Theme.label(song.name(), 26));
@@ -52,6 +52,8 @@ public final class PersonalWeekPanel extends JPanel {
               own,
               app.service.today(),
               () -> {
+                selected = day;
+                app.rememberSelection(day, app.service.user());
                 if (day.equals(app.service.today())) app.edit(own, day);
                 else app.inspectRecord(own, day, app.service.user(), () -> app.show("S05", this));
               },
@@ -122,6 +124,7 @@ public final class PersonalWeekPanel extends JPanel {
     if (date.isBefore(week) || date.isAfter(week.plusDays(6)) || date.isAfter(app.service.today()))
       return;
     selected = date;
+    app.rememberSelection(date, app.service.user());
     List<MidiEngine.Part> parts =
         EnsembleData.parts(
             records,

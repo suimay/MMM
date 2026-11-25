@@ -1,0 +1,13 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"><modelVersion>4.0.0</modelVersion>
+  <parent><groupId>org.mmm</groupId><artifactId>mmm-parent</artifactId><version>2.6.0</version></parent><artifactId>mmm-dev-server</artifactId>
+  <dependencies>
+    <dependency><groupId>org.mmm</groupId><artifactId>mmm-server</artifactId><version>${project.version}</version></dependency>
+    <dependency><groupId>io.zonky.test</groupId><artifactId>embedded-postgres</artifactId><version>2.2.2</version></dependency>
+  </dependencies>
+  <build><finalName>MMM-dev-server</finalName><plugins><plugin><groupId>org.springframework.boot</groupId><artifactId>spring-boot-maven-plugin</artifactId><configuration><mainClass>mmm.dev.LocalServer</mainClass></configuration></plugin></plugins></build>
+  <profiles><profile><id>windows-dev</id><build><plugins><plugin><groupId>org.springframework.boot</groupId><artifactId>spring-boot-maven-plugin</artifactId><configuration><excludes>
+    <exclude><groupId>io.zonky.test.postgres</groupId><artifactId>embedded-postgres-binaries-darwin-amd64</artifactId></exclude>
+    <exclude><groupId>io.zonky.test.postgres</groupId><artifactId>embedded-postgres-binaries-linux-amd64</artifactId></exclude>
+    <exclude><groupId>io.zonky.test.postgres</groupId><artifactId>embedded-postgres-binaries-linux-amd64-alpine</artifactId></exclude>
+  </excludes></configuration></plugin></plugins></build></profile></profiles>
+</project>

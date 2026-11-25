@@ -17,8 +17,15 @@ public final class NoteCanvas extends JPanel {
   public int selected = -1;
   public int inspected = -1;
   public long playhead = -1;
-  private int dragX, dragY;
+  public Supplier<List<RestEvent>> restSource = List::of;
+  public Supplier<List<ExpressionRange>> expressionSource = List::of;
+  public Supplier<List<SoundShape.LiveNote>> liveSource = List::of;
+  public BiConsumer<Integer, RestEvent> restEdit = (i, r) -> {};
+  public IntConsumer restSelect = i -> {};
+  public int selectedRest = -1;
+  private int dragX, dragY, dragPitchSpan=36;
   private NoteEvent original;
+  private RestEvent originalRest;
   private boolean resize;
   public static final int LEFT = 42, TOP = 44, BOTTOM = 44, RIGHT = 24;
 
@@ -41,7 +48,9 @@ public final class NoteCanvas extends JPanel {
               public void mousePressed(MouseEvent e) {
                 if (!SwingUtilities.isLeftMouseButton(e)) return;
                 requestFocusInWindow();
-                select.accept(hit(e.getX(), e.getY()));
+                selectedRest = hitRest(e.getX(), e.getY());
+                select.accept(selectedRest >= 0 ? -1 : hit(e.getX(), e.getY()));
+                restSelect.accept(selectedRest);
               }
             });
         for (String direction : new String[] {"LEFT", "RIGHT"}) {
@@ -75,16 +84,26 @@ public final class NoteCanvas extends JPanel {
               direction,
               new AbstractAction() {
                 public void actionPerformed(ActionEvent e) {
+                  if (selectedRest >= 0 && selectedRest < restSource.get().size()) {
+                    RestEvent r = restSource.get().get(selectedRest);
+                    int start = r.start();
+                    if (direction.equals("LEFT")) start = Math.max(0, start - Model.GRID);
+                    if (direction.equals("RIGHT")) start = Math.min(Model.BAR - r.duration(), start + Model.GRID);
+                    restEdit.accept(selectedRest, new RestEvent(start, r.duration()));
+                    gestureFinished.run();
+                    repaint();
+                    return;
+                  }
                   if (selected < 0 || selected >= source.get().size()) return;
                   NoteEvent n = source.get().get(selected);
                   int start = n.start(), pitch = n.pitch();
                   switch (direction) {
                     case "LEFT" -> start = Math.max(0, start - 120);
                     case "RIGHT" -> start = Math.min(Model.BAR - n.duration(), start + 120);
-                    case "UP" -> pitch = Math.min(84, pitch + 1);
-                    case "DOWN" -> pitch = Math.max(48, pitch - 1);
+                    case "UP" -> pitch = Math.min(Model.MAX_PITCH, pitch + 1);
+                    case "DOWN" -> pitch = Math.max(Model.MIN_PITCH, pitch - 1);
                   }
-                  edit.accept(selected, new NoteEvent(start, n.duration(), pitch, n.velocity()));
+                  edit.accept(selected, new NoteEvent(start, n.duration(), pitch, n.velocity(), n.articulation()));
                   gestureFinished.run();
                   repaint();
                 }
@@ -94,6 +113,22 @@ public final class NoteCanvas extends JPanel {
         new MouseAdapter() {
           public void mousePressed(MouseEvent e) {
             requestFocusInWindow();
+            int rest = hitRest(e.getX(), e.getY());
+            if (rest >= 0) {
+              selected = -1;
+              selectedRest = rest;
+              original = null;
+              originalRest = restSource.get().get(rest);
+              resize = Math.abs(e.getX() - tickX(originalRest.start() + originalRest.duration())) <= 10;
+              dragX = e.getX();
+              select.accept(-1);
+              restSelect.accept(rest);
+              repaint();
+              return;
+            }
+            selectedRest = -1;
+            originalRest = null;
+            restSelect.accept(-1);
             resize =
                 selected >= 0
                     && selected < source.get().size()
@@ -104,11 +139,22 @@ public final class NoteCanvas extends JPanel {
               original = source.get().get(selected);
               dragX = e.getX();
               dragY = e.getY();
+              int[] range=SoundShape.pitchRange(source.get());dragPitchSpan=range[1]-range[0];
             }
             repaint();
           }
 
           public void mouseDragged(MouseEvent e) {
+            if (originalRest != null && selectedRest >= 0) {
+              int delta = Model.snap(Math.round((e.getX() - dragX) * Model.BAR / (double) plotWidth()));
+              int start = resize ? originalRest.start()
+                  : Math.max(0, Math.min(Model.BAR - originalRest.duration(), originalRest.start() + delta));
+              int duration = resize ? Math.max(Model.GRID,
+                  Math.min(Model.BAR - start, originalRest.duration() + delta)) : originalRest.duration();
+              restEdit.accept(selectedRest, new RestEvent(start, duration));
+              repaint();
+              return;
+            }
             if (selected < 0 || original == null) return;
             NoteEvent next;
             if (resize) {
@@ -122,7 +168,7 @@ public final class NoteCanvas extends JPanel {
                                   + Math.round(
                                       (e.getX() - dragX) * Model.BAR / (double) plotWidth()))));
               next =
-                  new NoteEvent(original.start(), duration, original.pitch(), original.velocity());
+                  new NoteEvent(original.start(), duration, original.pitch(), original.velocity(), original.articulation());
             } else {
               int start =
                   Math.max(
@@ -135,12 +181,12 @@ public final class NoteCanvas extends JPanel {
                                       (e.getX() - dragX) * Model.BAR / (double) plotWidth()))));
               int pitch =
                   Math.max(
-                      48,
+                      Model.MIN_PITCH,
                       Math.min(
-                          84,
+                          Model.MAX_PITCH,
                           original.pitch()
-                              - (int) Math.round((e.getY() - dragY) * 36.0 / plotHeight())));
-              next = new NoteEvent(start, original.duration(), pitch, original.velocity());
+                              - (int) Math.round((e.getY() - dragY) * (double)dragPitchSpan / plotHeight())));
+              next = new NoteEvent(start, original.duration(), pitch, original.velocity(), original.articulation());
             }
             edit.accept(selected, next);
             repaint();
@@ -148,6 +194,7 @@ public final class NoteCanvas extends JPanel {
 
           public void mouseReleased(MouseEvent e) {
             original = null;
+            originalRest = null;
             resize = false;
             gestureFinished.run();
           }
@@ -179,9 +226,22 @@ public final class NoteCanvas extends JPanel {
   }
 
   public Point2D noteCenter(NoteEvent n) {
+    int[] range=displayRange();
+    int low=Math.min(range[0],n.pitch()),high=Math.max(range[1],n.pitch());
     return new Point2D.Double(
         LEFT + n.start() * plotWidth() / (double) Model.BAR,
-        TOP + (84 - n.pitch()) * plotHeight() / 36.0);
+        TOP + (high - n.pitch()) * plotHeight() / (double)(high-low));
+  }
+
+  private int[] displayRange() {
+    int[] range=SoundShape.pitchRange(source.get());
+    for(SoundShape.LiveNote note:liveSource.get()){range[0]=Math.min(range[0],note.pitch());range[1]=Math.max(range[1],note.pitch());}
+    return range;
+  }
+
+  public Shape liveShape(SoundShape.LiveNote note) {
+    int[] range=displayRange();double y=TOP+(range[1]-note.pitch())*plotHeight()/(double)(range[1]-range[0]);
+    return SoundShape.contour(tickX(note.start()),y,Math.max(2,note.duration()*plotWidth()/Model.BAR),SoundShape.thickness(note.velocity()));
   }
 
   public Shape noteShape(NoteEvent n) {
@@ -190,7 +250,23 @@ public final class NoteCanvas extends JPanel {
         p.getX(),
         p.getY(),
         n.duration() * plotWidth() / (double) Model.BAR,
-        SoundShape.thickness(n.velocity()));
+        SoundShape.thickness(Model.effectiveVelocity(n, expressionSource.get())));
+  }
+
+  private double tickX(double tick) {
+    return LEFT + tick * plotWidth() / (double) Model.BAR;
+  }
+
+  public Rectangle2D restBounds(RestEvent rest) {
+    return new Rectangle2D.Double(tickX(rest.start()), getHeight() - BOTTOM - 24,
+        rest.duration() * plotWidth() / (double) Model.BAR, 24);
+  }
+
+  private int hitRest(int x, int y) {
+    List<RestEvent> rests = restSource.get();
+    for (int i = rests.size() - 1; i >= 0; i--)
+      if (restBounds(rests.get(i)).contains(x, y)) return i;
+    return -1;
   }
 
   public Point2D tailPoint(NoteEvent n) {
@@ -205,6 +281,8 @@ public final class NoteCanvas extends JPanel {
 
   private int hit(int x, int y) {
     List<NoteEvent> ns = source.get();
+    if (editable && selected >= 0 && selected < ns.size() && noteShape(ns.get(selected)).contains(x, y))
+      return selected;
     for (int i = ns.size() - 1; i >= 0; i--) {
       Shape s = noteShape(ns.get(i));
       if (s.contains(x, y) || new BasicStroke(10).createStrokedShape(s).contains(x, y)) return i;
@@ -230,6 +308,24 @@ public final class NoteCanvas extends JPanel {
     g.setColor(Theme.MUTED);
     g.drawString("높게", 7, TOP);
     g.drawString("낮게", 7, getHeight() - BOTTOM);
+    if (!editable) g.drawString("읽기 전용 · 선택하여 듣기", LEFT, 18);
+    for (ExpressionRange range : expressionSource.get()) {
+      int x1 = (int) tickX(range.start()), x2 = (int) tickX(range.end());
+      g.setColor(Theme.ORANGE);
+      g.drawLine(x1, TOP - 17, x2, TOP - 24);
+      g.drawLine(x1, TOP - 17, x2, TOP - 10);
+    }
+    for (int i = 0; i < restSource.get().size(); i++) {
+      RestEvent rest = restSource.get().get(i);
+      Rectangle2D box = restBounds(rest);
+      g.setColor(i == selectedRest ? Theme.WASH : new Color(237, 237, 232));
+      g.fill(box);
+      g.setColor(i == selectedRest ? Theme.ORANGE : Theme.MUTED);
+      g.draw(box);
+      g.drawString("쉼 " + rest.duration() / 480.0 + "박", (int) box.getX() + 4, (int) box.getY() + 16);
+      if (i == selectedRest && editable)
+        g.fillRect((int) box.getMaxX() - 5, (int) box.getY() + 8, 5, 8);
+    }
     List<NoteEvent> ns = source.get();
     java.util.List<Integer> order = new java.util.ArrayList<>();
     for (int i = 0; i < ns.size(); i++) if (i != selected || !editable) order.add(i);
@@ -238,8 +334,13 @@ public final class NoteCanvas extends JPanel {
       NoteEvent n = ns.get(i);
       Shape shape = noteShape(n);
       boolean picked = i == selected && editable;
-      boolean sounding = playhead >= n.start() && playhead < n.start() + n.duration();
+      boolean sounding = playhead >= n.start() && playhead < n.start() + n.gateDuration();
       SoundShape.paint(g, shape, picked || i == inspected, sounding, !editable);
+      if (n.articulation() == Articulation.STACCATO) {
+        Point2D dot = noteCenter(n);
+        g.setColor(Theme.INK);
+        g.fillOval((int) dot.getX() + 4, (int) dot.getY() - 6, 4, 4);
+      }
       if (picked) {
         Point2D tip = tailPoint(n);
         g.setColor(Theme.SURFACE);
@@ -249,14 +350,15 @@ public final class NoteCanvas extends JPanel {
         Point2D start = noteCenter(n);
         g.setColor(Theme.MUTED);
         g.drawString(
-            noteName(n.pitch()) + " · " + n.duration() / 480.0 + "박 · 세기 " + n.velocity(),
+            noteName(n.pitch()) + " · " + n.duration() / 480.0 + "박 · 세기 " + Model.effectiveVelocity(n, expressionSource.get()),
             (int) Math.max(LEFT, Math.min(start.getX(), getWidth() - 180)),
             (int) (start.getY() - SoundShape.thickness(n.velocity()) - 10));
       }
     }
-    if (ns.isEmpty()) {
+    for(SoundShape.LiveNote note:liveSource.get())SoundShape.paintLive(g,liveShape(note));
+    if (ns.isEmpty() && restSource.get().isEmpty() && liveSource.get().isEmpty()) {
       g.setColor(Theme.MUTED);
-      String message = editable ? "아래 건반에서 오늘의 첫 소리를 만들어 보세요." : "이 날은 쉼 한 마디입니다.";
+      String message = editable ? "아래 건반에서 오늘의 첫 소리를 만들어 보세요." : "기록된 음과 쉼이 없습니다.";
       g.drawString(
           message,
           Math.max(LEFT, (getWidth() - g.getFontMetrics().stringWidth(message)) / 2),

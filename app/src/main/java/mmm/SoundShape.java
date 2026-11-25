@@ -6,6 +6,8 @@ import mmm.Model.*;
 
 /** Semantic sound glyph: attack body -> decaying tail, not a capsule or measured waveform. */
 public final class SoundShape {
+  public record LiveNote(double start,double duration,int pitch,int velocity) {}
+  public static final Color LIVE = new Color(93,239,235);
   private SoundShape() {}
 
   public static double thickness(int velocity) {
@@ -61,10 +63,18 @@ public final class SoundShape {
     }
   }
 
+  public static void paintLive(Graphics2D g,Shape shape) {
+    g.setColor(new Color(80,231,229,24));g.setStroke(new BasicStroke(12,BasicStroke.CAP_ROUND,BasicStroke.JOIN_ROUND));g.draw(shape);
+    g.setColor(new Color(80,231,229,52));g.setStroke(new BasicStroke(5,BasicStroke.CAP_ROUND,BasicStroke.JOIN_ROUND));g.draw(shape);
+    g.setColor(LIVE);g.fill(shape);
+  }
+
   public static void miniature(
       Graphics2D g, java.util.List<NoteEvent> notes, double x, double y, double w, double h) {
+    int[] range=pitchRange(notes);
     for (NoteEvent n : notes) {
-      double cx = x + n.start() * w / Model.BAR, cy = y + (84 - n.pitch()) * h / 36;
+      double cx = x + n.start() * w / Model.BAR,
+          cy = y+h*.15+(range[1]-n.pitch())*h*.70/(range[1]-range[0]);
       Shape s =
           contour(
               cx,
@@ -73,5 +83,12 @@ public final class SoundShape {
               Math.min(h * .15, thickness(n.velocity()) * .32));
       paint(g, s, false, false, false);
     }
+  }
+
+  /** Retain the familiar middle register and include any wider saved pitches. */
+  public static int[] pitchRange(java.util.List<NoteEvent> notes) {
+    int low=48,high=84;
+    for(NoteEvent note:notes){low=Math.min(low,note.pitch());high=Math.max(high,note.pitch());}
+    return new int[]{low,high};
   }
 }

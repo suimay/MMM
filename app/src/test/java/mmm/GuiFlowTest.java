@@ -143,7 +143,8 @@ public final class GuiFlowTest {
     Graphics2D graphics = picture.createGraphics();
     dialog.paint(graphics);
     graphics.dispose();
-    ImageIO.write(picture, "png", Path.of("docs", id + "-dialog.png").toFile());
+    Files.createDirectories(Path.of("build", "evidence"));
+    ImageIO.write(picture, "png", Path.of("build", "evidence", id + "-dialog.png").toFile());
     ComponentEvidence.record(id, id + "-dialog.png", dialog);
   }
 
@@ -154,7 +155,8 @@ public final class GuiFlowTest {
     Graphics2D g = image.createGraphics();
     app.paint(g);
     g.dispose();
-    ImageIO.write(image, "png", Path.of("docs", name + ".png").toFile());
+    Files.createDirectories(Path.of("build", "evidence"));
+    ImageIO.write(image, "png", Path.of("build", "evidence", name + ".png").toFile());
     ComponentEvidence.record(name.substring(0, 3), name + ".png", app);
   }
 
@@ -282,6 +284,8 @@ public final class GuiFlowTest {
             check(app.midi.length() == 0, "future weekday cannot play");
             click("오늘 편집");
             check(app.editor != null, "S06 opened");
+            Field inputMode=EditorPanel.class.getDeclaredField("mode");inputMode.setAccessible(true);
+            ((JComboBox<?>)inputMode.get(app.editor)).setSelectedIndex(0);
             check(
                 app.editor.piano.pitch(3) == 65 && app.editor.piano.pitch(6) == 71,
                 "editor also defaults to diatonic scale");
