@@ -7,6 +7,9 @@ import java.util.*;
 import javax.imageio.ImageIO;
 import mmm.Model.*;
 
+/** Regression coverage for the current renderer. Tail/asymmetry assertions describe this
+ * implementation, not permanent visual requirements. Revise them with a new renderer while
+ * retaining semantic and read-only checks; see docs/DESIGN.md. */
 public final class SoundShapeTest {
   static int count;
 
