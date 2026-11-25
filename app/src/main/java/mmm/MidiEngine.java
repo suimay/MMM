@@ -99,6 +99,12 @@ public final class MidiEngine implements AutoCloseable {
 
   public synchronized void play(List<Part> parts, int length, int bpm, Map<Integer, Integer> levels)
       throws Exception {
+    playFrom(parts, length, bpm, levels, 0);
+  }
+
+  public synchronized void playFrom(
+      List<Part> parts, int length, int bpm, Map<Integer, Integer> levels, long startTick)
+      throws Exception {
     stop();
     if (sequencer == null || !sequencer.isOpen()) throw new IllegalStateException(status);
     List<Part> scaled =
@@ -107,6 +113,9 @@ public final class MidiEngine implements AutoCloseable {
             .toList();
     sequencer.setSequence(sequence(scaled, length));
     sequencer.setTempoInBPM(bpm);
+    sequencer.setTickPosition(Math.max(0, Math.min(startTick, length - 1)));
+    sequencer.setLoopStartPoint(Math.max(0, Math.min(startTick, length - 1)));
+    sequencer.setLoopEndPoint(-1);
     loaded = true;
     paused = false;
     sequencer.setLoopCount(looping ? Sequencer.LOOP_CONTINUOUSLY : 0);
