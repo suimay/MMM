@@ -79,3 +79,6 @@ java -jar MMM-emotion-preview.jar --demo-date=2026-11-01
 - [테스트](app/src/test/java/mmm)
 
 개인 저장 데이터·계정 파일·JDK 설치본·macOS 앱 묶음은 저장소에 포함하지 않습니다. macOS에서는 `app/package-mac.sh`로 런타임을 포함한 앱을 만들 수 있습니다.
+
+
+재구성 브랜치 안내: 현재 디자인 방향은 app/docs/DESIGN.md를 따른다. 과거 화면·팔레트는 유지 조건이 아니다. 이 브랜치는 과거 기능별 검토용이며 제품 main에 중복 병합하지 않는다.

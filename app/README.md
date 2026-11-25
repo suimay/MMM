@@ -141,3 +141,6 @@ S01~S14와 D01~D05를 구현했습니다. S14 소리 일기장을 추가했습�
 기존 앱 조작 방식은 [Apple GarageBand 공식 사용 설명서](https://support.apple.com/en-gb/guide/garageband/welcome/mac)의 피아노롤 편집·실행 취소/다시 실행·메트로놈 흐름을 참고했습니다. MMM에 맞게 단순화했으며 GarageBand 호환성이나 동일한 기능 전체를 주장하지 않습니다.
 
 검증 결과와 실제 화면은 `docs/VERIFICATION.md`, `docs/S06-editor.png`, `docs/S09-ensemble.png`, `docs/S10-management.png`, `docs/S11-score.png`에 있습니다. 자동 검사는 별도 임시 데이터만 사용합니다.
+
+
+재구성 브랜치 안내: 현재 디자인 방향은 docs/DESIGN.md를 따른다. 과거 화면·팔레트는 유지 조건이 아니다. 이 브랜치는 과거 기능별 검토용이며 제품 main에 중복 병합하지 않는다.
