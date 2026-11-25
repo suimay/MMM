@@ -22,6 +22,7 @@ public final class EnsemblePanel extends JPanel {
   public final JCheckBox whole = new JCheckBox("이 주 전체 · 7마디");
   public final JList<EnsembleData.Member> list;
   public final RecordInspector inspector;
+  public final DayPlaybackBar dayBar;
   public final JTabbedPane tabs = new JTabbedPane();
   private final Map<String, JCheckBox> enabled = new LinkedHashMap<>();
   private final Map<String, JSlider> volume = new LinkedHashMap<>();
@@ -50,14 +51,15 @@ public final class EnsemblePanel extends JPanel {
       LocalDate day = week.plusDays(d);
       if (!day.isAfter(app.service.today())) dates.addItem(day);
     }
-    if (dates.getItemCount() == 0) dates.addItem(app.service.today());
-    dates.setSelectedItem(
-        preferred != null
-                && !preferred.isBefore(week)
-                && !preferred.isAfter(week.plusDays(6))
-                && !preferred.isAfter(app.service.today())
-            ? preferred
-            : dates.getItemAt(dates.getItemCount() - 1));
+
+    if (dates.getItemCount() > 0)
+      dates.setSelectedItem(
+          preferred != null
+                  && !preferred.isBefore(week)
+                  && !preferred.isAfter(week.plusDays(6))
+                  && !preferred.isAfter(app.service.today())
+              ? preferred
+              : dates.getItemAt(dates.getItemCount() - 1));
     JToolBar tools = new JToolBar();
     tools.setFloatable(false);
     tools.setLayout(new FlowLayout(FlowLayout.LEFT, 8, 5));
@@ -71,6 +73,9 @@ public final class EnsemblePanel extends JPanel {
                 Theme.button("모두 선택", () -> preset(2)))
             .getComponents()) tools.add(item);
     title.add(tools);
+    title.add(Theme.muted("요일 ▶를 누르면 해당 날짜의 합주를 바로 듣습니다."));
+    dayBar = new DayPlaybackBar(week, app.service.today(), this::playDay);
+    title.add(dayBar);
     for (Component child : title.getComponents())
       if (child instanceof JComponent component) component.setAlignmentX(Component.LEFT_ALIGNMENT);
     add(title, BorderLayout.NORTH);
@@ -127,7 +132,7 @@ public final class EnsemblePanel extends JPanel {
       slider.addChangeListener(e -> applyLevel(member.id()));
     }
     tabs.addTab("합주 타임라인", new JScrollPane(timeline));
-    tabs.addTab("선택 참여자 기록", inspector);
+    tabs.addTab("선택 참여자 기록", new JScrollPane(inspector));
     tabs.addChangeListener(e -> updateInspector());
     list.addListSelectionListener(
         e -> {
@@ -149,6 +154,7 @@ public final class EnsemblePanel extends JPanel {
         Theme.row(
             Theme.secondary("선택 기록 자세히", this::openDetail),
             Theme.button("MIDI 내보내기", () -> app.exportMidi(exportParts(), length(), song.bpm())),
+            Theme.button("소리 일기장", () -> app.showJournal(records)),
             Theme.button("공동 주간", app::week)));
     add(footer, BorderLayout.SOUTH);
     dates.addActionListener(
@@ -172,7 +178,7 @@ public final class EnsemblePanel extends JPanel {
   }
 
   private LocalDate date() {
-    return (LocalDate) dates.getSelectedItem();
+    return dates.getSelectedItem() == null ? week : (LocalDate) dates.getSelectedItem();
   }
 
   private int length() {
@@ -193,7 +199,19 @@ public final class EnsemblePanel extends JPanel {
         records, members, levels(), whole.isSelected() ? week : date(), whole.isSelected());
   }
 
+  public void playDay(LocalDate day) {
+    if (day.isBefore(week) || day.isAfter(week.plusDays(6)) || day.isAfter(app.service.today()))
+      return;
+    whole.setSelected(false);
+    dates.setEnabled(true);
+    dates.setSelectedItem(day);
+    dayBar.select(day);
+    refresh();
+    playMix();
+  }
+
   public void playMix() {
+    if (date().isAfter(app.service.today())) return;
     auditioning = false;
     Map<String, Integer> levels = levels();
     Map<String, Integer> full = new LinkedHashMap<>();
@@ -227,6 +245,7 @@ public final class EnsemblePanel extends JPanel {
   }
 
   private void refresh() {
+    dayBar.select(date());
     updateInspector();
     lanes.forEach(JPanel::repaint);
   }
@@ -244,7 +263,7 @@ public final class EnsemblePanel extends JPanel {
 
   public void openDetail() {
     EnsembleData.Member member = list.getSelectedValue();
-    if (member != null)
+    if (member != null && !date().isAfter(app.service.today()))
       app.inspectRecord(
           EnsembleData.find(records, member.id(), date()),
           date(),
@@ -254,7 +273,9 @@ public final class EnsemblePanel extends JPanel {
 
   private void tick() {
     long pos = auditioning ? -1 : app.midi.position();
-    inspector.updatePlayback(pos < 0 ? -1 : pos % Model.BAR);
+    boolean sameDay =
+        !whole.isSelected() || (pos >= 0 && week.plusDays(pos / Model.BAR).equals(date()));
+    inspector.updatePlayback(pos < 0 || !sameDay ? -1 : pos % Model.BAR);
     List<String> sounding = new ArrayList<>();
     if (pos >= 0) {
       LocalDate day = whole.isSelected() ? week.plusDays(pos / Model.BAR) : date();
@@ -358,10 +379,10 @@ public final class EnsemblePanel extends JPanel {
                 int bar =
                     Math.max(0, Math.min(6, (e.getX() - 18) * 7 / Math.max(1, getWidth() - 36)));
                 LocalDate day = week.plusDays(bar);
-                if (!day.isAfter(app.service.today())) dates.setSelectedItem(day);
+                if (!day.isAfter(app.service.today())) playDay(day);
               }
               if (e.getClickCount() == 2) {
-                tabs.setSelectedComponent(inspector);
+                tabs.setSelectedIndex(1);
                 updateInspector();
               }
             }
