@@ -16,10 +16,9 @@ public final class ComponentGuide extends JPanel {
     new Page(
         "S01",
         "시작·소리 체험",
-        "JLabel(ImageIcon), JComboBox, JPanel, JSlider, JButton",
-        "ItemListener, KeyListener, MouseListener, MouseMotionListener, FocusListener,"
-            + " ChangeListener",
-        "m 글자의 높이·너비로 음높이·길이를 바꾸고 세 음 이어 듣기, 도레미 건반 체험"),
+        "JLabel, JPanel, JSlider, JButton",
+        "MouseListener, MouseMotionListener, ChangeListener, ActionListener",
+        "m 글자의 높이·너비로 음높이·길이를 바꾸고 세 음 이어 듣기"),
     new Page(
         "S02",
         "로그인",
