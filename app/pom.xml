@@ -1,0 +1,16 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"><modelVersion>4.0.0</modelVersion>
+  <parent><groupId>org.mmm</groupId><artifactId>mmm-parent</artifactId><version>2.6.0</version></parent>
+  <artifactId>mmm-client</artifactId>
+  <dependencies><dependency><groupId>org.mmm</groupId><artifactId>mmm-shared</artifactId><version>${project.version}</version></dependency></dependencies>
+  <build><finalName>MMM-client</finalName><resources><resource><directory>resources</directory></resource></resources><plugins>
+    <plugin>
+      <groupId>org.codehaus.mojo</groupId><artifactId>exec-maven-plugin</artifactId><version>3.5.0</version>
+      <executions><execution><id>client-regression-checks</id><phase>test</phase><goals><goal>exec</goal></goals>
+        <configuration><executable>${java.home}/bin/java</executable><classpathScope>test</classpathScope>
+          <arguments><argument>-ea</argument><argument>-Djava.awt.headless=true</argument><argument>-cp</argument><classpath/><argument>mmm.ClientRegressionChecks</argument></arguments>
+        </configuration>
+      </execution></executions>
+    </plugin>
+    <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-shade-plugin</artifactId><version>3.6.1</version><executions><execution><phase>package</phase><goals><goal>shade</goal></goals><configuration combine.self="override"><createDependencyReducedPom>false</createDependencyReducedPom><transformers><transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer"><mainClass>mmm.MMM</mainClass></transformer></transformers></configuration></execution></executions></plugin>
+  </plugins></build>
+</project>

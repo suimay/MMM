@@ -14,8 +14,19 @@ import javax.swing.event.*;
 import mmm.Model.*;
 
 public final class MMM extends JFrame {
-  public static final String[] INSTRUMENT_NAMES = {"피아노", "마림바", "기타", "오르골"};
-  public static final int[] PROGRAMS = {0, 12, 24, 10};
+  public static final String[] INSTRUMENT_NAMES = {"피아노", "베이스", "기타", "드럼"};
+  public static final int[] PROGRAMS = {0, 33, 24, Model.DRUMS};
+
+  public static int instrumentProgram(JComboBox<?> combo) {return instrumentProgram(combo,combo.getSelectedIndex());}
+  public static int instrumentProgram(JComboBox<?> combo,int index) {
+    return index>=0 && index<PROGRAMS.length?PROGRAMS[index]:(Integer)combo.getClientProperty("legacy-instrument");
+  }
+  public static void selectInstrument(JComboBox<String> combo,int program) {
+    for(int i=0;i<PROGRAMS.length;i++)if(PROGRAMS[i]==program){combo.setSelectedIndex(i);return;}
+    combo.putClientProperty("legacy-instrument",program);
+    if(combo.getItemCount()>PROGRAMS.length)combo.removeItemAt(PROGRAMS.length);
+    combo.addItem("기존 · "+ArtAssets.instrumentName(program));combo.setSelectedIndex(PROGRAMS.length);
+  }
 
   public static int instrumentIndex(int p) {
     for (int i = 0; i < PROGRAMS.length; i++) if (PROGRAMS[i] == p) return i;
@@ -30,6 +41,8 @@ public final class MMM extends JFrame {
   private final JLabel banner = new JLabel();
   private Song current;
   private LocalDate week;
+  private LocalDate selectedDay;
+  private String selectedAuthor;
   private String screen = "S01";
   private boolean busy;
   private JPanel glass;
@@ -42,12 +55,12 @@ public final class MMM extends JFrame {
   private final Map<String, List<Phrase>> libraryRecords = new HashMap<>();
 
   public MMM(MusicService service, Path dataPath) {
-    super("MMM · 음음음 2.3.1");
+    super("MMM · 음음음 2.6.0 · " + (service.remote() ? "원격" : "로컬"));
     this.service = service;
     this.dataPath = dataPath;
     this.week = Model.monday(service.today());
     setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
-    setMinimumSize(new Dimension(1060, 780));
+    setMinimumSize(new Dimension(1000, 720));
     setSize(1180, 850);
     setLocationRelativeTo(null);
     JPanel shell = new JPanel(new BorderLayout());
@@ -135,6 +148,77 @@ public final class MMM extends JFrame {
     menu.add(item);
   }
 
+  boolean working(){return busy;}
+
+  void enableDevelopmentPreview(Path stateFile,Runnable restart) {
+    setTitle(getTitle()+" · 개발 미리보기");setMinimumSize(new Dimension(1000,780));
+    JPanel shell=(JPanel)getContentPane();
+    Component nav=((BorderLayout)shell.getLayout()).getLayoutComponent(BorderLayout.NORTH);
+    JPanel top=new JPanel(new BorderLayout()),tools=new JPanel(new BorderLayout(12,0));
+    tools.setBorder(new EmptyBorder(4,24,4,20));tools.setBackground(Theme.WASH);
+    JLabel label=Theme.muted("개발 미리보기 · 샘플 계정 · 코드를 수정한 뒤 F5로 반영");
+    tools.add(label);
+    Runnable refresh=()->{
+      if(busy)return;
+      stopSound();
+      guard(()->{
+      try {
+        Properties state=new Properties();state.setProperty("screen",screen);
+        if(current!=null)state.setProperty("song",current.id());
+        state.setProperty("week",week.toString());
+        if(selectedDay!=null)state.setProperty("date",selectedDay.toString());
+        if(selectedAuthor!=null)state.setProperty("author",selectedAuthor);
+        state.setProperty("width",Integer.toString(getWidth()));state.setProperty("height",Integer.toString(getHeight()));
+        try(var writer=Files.newBufferedWriter(stateFile)){state.store(writer,"MMM development preview view");}
+        closeWindow();restart.run();
+      }catch(Exception failure){error(failure);}
+      });
+    };
+    JButton reload=Theme.secondary("변경 반영 · F5",refresh);tools.add(reload,BorderLayout.EAST);
+    shell.remove(nav);top.add(nav,BorderLayout.NORTH);top.add(tools,BorderLayout.SOUTH);shell.add(top,BorderLayout.NORTH);
+    getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("F5"),"development-reload");
+    getRootPane().getActionMap().put("development-reload",new AbstractAction(){public void actionPerformed(ActionEvent event){refresh.run();}});
+    shell.revalidate();
+  }
+
+  private record PreviewData(Song song,List<Phrase> records,List<EnsembleData.Member> members,Settings settings) {}
+  void restoreDevelopmentPreview(Properties view) {
+    try {
+      int width=Math.min(1800,Math.max(1000,Integer.parseInt(view.getProperty("width","1180"))));
+      int height=Math.min(1000,Math.max(780,Integer.parseInt(view.getProperty("height","850"))));
+      setSize(width,height);
+      week=LocalDate.parse(view.getProperty("week",Model.monday(service.today()).toString()));
+      selectedDay=LocalDate.parse(view.getProperty("date",service.today().toString()));
+      selectedAuthor=view.getProperty("author",service.user());
+    }catch(IllegalArgumentException ignored){week=Model.monday(service.today());selectedDay=service.today();}
+    work(()->{
+      List<Song> songs=service.songs();
+      Song song=songs.stream().filter(s->s.id().equals(view.getProperty("song","first"))).findFirst().orElse(songs.get(0));
+      return new PreviewData(song,service.phrases(song.id()),service.participants(song.id()),service.repository.settings(service.user()));
+    },data->{
+      current=data.song();currentMembers=data.members();settings=data.settings();midi.volume(settings.volume());
+      switch(view.getProperty("screen","S06")) {
+        case "S01" -> start();
+        case "S04" -> library();
+        case "S06" -> edit(find(data.records(),service.user(),service.today()),service.today());
+        case "S07" -> inspectRecord(find(data.records(),selectedAuthor,selectedDay),selectedDay,selectedAuthor,this::week);
+        case "S09" -> showEnsemble(data.records(),selectedDay);
+        case "S10" -> showManagement();
+        case "S11" -> showScore();
+        case "S12" -> settings();
+        case "S13" -> help();
+        case "S14" -> showJournal(data.records());
+        default -> week();
+      }
+    });
+  }
+
+  private void closeWindow() {
+    if(viewerTimer!=null)viewerTimer.stop();
+    if(editor!=null)editor.dispose();
+    stopSound();midi.close();dispose();
+  }
+
   private void installMenus() {
     JMenuBar bar = new JMenuBar();
     JMenu file = new JMenu("파일"),
@@ -200,6 +284,10 @@ public final class MMM extends JFrame {
   }
 
   <T> void work(Job<T> task, Consumer<T> success) {
+    work(task,success,this::error);
+  }
+
+  <T> void work(Job<T> task, Consumer<T> success, Consumer<Throwable> failure) {
     if (busy) return;
     busy = true;
     glass.setVisible(true);
@@ -216,7 +304,7 @@ public final class MMM extends JFrame {
           success.accept(get());
         } catch (Exception e) {
           Throwable cause = e.getCause() != null ? e.getCause() : e;
-          error(cause);
+          failure.accept(cause);
         }
         updateBanner();
       }
@@ -226,16 +314,54 @@ public final class MMM extends JFrame {
   private void updateBanner() {
     banner.setText(
         (service.demo ? "시연 · " + service.today() : "서울 · " + service.today())
-            + "    ·    이 기기에 저장 · 공동 기능은 로컬 모의    ·    "
+            + "    ·    " + service.storageDescription() + "    ·    "
             + midi.status());
   }
 
   public void error(Throwable e) {
+    if (e instanceof RemoteRepository.RemoteException remote && remote.status==401 && !remote.code.equals("INVALID_CREDENTIALS")) {
+      reauthenticate();
+      return;
+    }
+    if (editor!=null && e instanceof RemoteRepository.RemoteException remote && remote.code.equals("VERSION_CONFLICT")) {
+      Object[] choices={"최신 저장본 보기","초안 유지"};
+      int choice=JOptionPane.showOptionDialog(this,e.getMessage(),"D05 · 저장본 충돌",JOptionPane.DEFAULT_OPTION,JOptionPane.WARNING_MESSAGE,null,choices,choices[1]);
+      if(choice==0) {
+        Phrase draft=editor.snapshot();
+        work(()->service.phrases(draft.songId()),records->{
+          Phrase latest=records.stream().filter(p->p.author().equals(draft.author())&&p.date().equals(draft.date())).findFirst().orElse(null);
+          RecordInspector inspector=new RecordInspector(this);
+          inspector.setRecord(latest,draft.date(),new EnsembleData.Member(draft.author(),draft.author(),false),draft.bpm(),draft.instrument());
+          JScrollPane scroll=new JScrollPane(inspector);scroll.setPreferredSize(new Dimension(800,520));
+          JOptionPane.showMessageDialog(this,scroll,"최신 저장본 · 초안은 편집기에 유지됩니다",JOptionPane.PLAIN_MESSAGE);
+          stopSound();
+        });
+      }
+      return;
+    }
     JOptionPane.showMessageDialog(
         this,
-        e.getMessage() + "\n편집 초안과 기존 저장본은 유지됩니다. 원인을 확인하고 같은 작업을 다시 시도하세요.",
+        e.getMessage() + (editor==null ? "" : "\n편집 초안과 기존 저장본은 유지됩니다. 원인을 확인하고 같은 작업을 다시 시도하세요."),
         "D05 · 작업을 완료하지 못했어요",
         JOptionPane.ERROR_MESSAGE);
+  }
+
+  private void reauthenticate() {
+    String author=editor==null?service.user():editor.snapshot().author();
+    JTextField id=new JTextField(author==null?"":author,20);
+    id.setEditable(editor==null);
+    JPasswordField password=new JPasswordField(20);
+    JPanel fields=new JPanel(new GridLayout(0,1,5,8));
+    fields.add(new JLabel("세션이 만료되었습니다. 같은 계정으로 다시 로그인하세요."));
+    fields.add(id);fields.add(password);
+    if(JOptionPane.showConfirmDialog(this,fields,"D05 · 다시 로그인",JOptionPane.OK_CANCEL_OPTION)!=JOptionPane.OK_OPTION)return;
+    char[] pass=password.getPassword();password.setText("");
+    work(()->{try{service.reauthenticate(id.getText().strip(),pass);return null;}finally{Arrays.fill(pass,'\0');}},
+        ignored->{
+          if(editor==null)library();
+          else JOptionPane.showMessageDialog(this,"로그인했습니다. 초안을 확인하고 저장을 다시 시도하세요.","로그인 완료",JOptionPane.INFORMATION_MESSAGE);
+        },
+        failure->JOptionPane.showMessageDialog(this,"로그인하지 못했습니다. 입력과 연결을 확인하세요. 초안은 유지됩니다.","D05 · 다시 로그인 실패",JOptionPane.ERROR_MESSAGE));
   }
 
   void show(String id, JPanel panel) {
@@ -330,11 +456,11 @@ public final class MMM extends JFrame {
   }
 
   private void login(String id) {
-    JPanel p = Theme.page("S02", "다시 만나 반가워요.", "이 기기에만 저장되는 로컬 데모 인증입니다. 실제 서비스 비밀번호를 사용하지 마세요.");
+    JPanel p = Theme.page("S02", "다시 만나 반가워요.", service.remote() ? "원격 계정 · " + service.storageDescription() : "이 기기에만 저장되는 로컬 데모 인증입니다. 실제 서비스 비밀번호를 사용하지 마세요.");
     JTextField user = new JTextField(id, 24);
     JPasswordField password = new JPasswordField(24);
     JLabel message =
-        new JLabel(service.demo ? "시연 계정  demo / demo1234" : "처음이라면 회원가입 · 샘플 시연은 demo.command 실행");
+        new JLabel(service.demo ? "시연 계정  demo / demo1234" : service.remote() ? "처음이라면 이 서버에 회원가입하세요." : "처음이라면 회원가입 · 샘플 시연은 demo.cmd 실행");
     JPanel form = new JPanel(new GridLayout(0, 2, 15, 18));
     form.setMaximumSize(new Dimension(660, 230));
     form.add(new JLabel("아이디"));
@@ -374,7 +500,7 @@ public final class MMM extends JFrame {
   }
 
   private void signup() {
-    JPanel p = Theme.page("S03", "나의 작은 기록을 시작해요.", "로컬 계정 · 외부 서버 전송 없음");
+    JPanel p = Theme.page("S03", "나의 작은 기록을 시작해요.", service.remote() ? "원격 계정 생성 · " + service.storageDescription() : "로컬 계정 · 외부 서버 전송 없음");
     JTextField id = new JTextField(20), nick = new JTextField(20);
     JPasswordField pw = new JPasswordField(20), confirm = new JPasswordField(20);
     JPanel form = new JPanel(new GridLayout(0, 2, 12, 12));
@@ -468,7 +594,7 @@ public final class MMM extends JFrame {
           JPanel p = Theme.page("S04", "곡 보관함", service.user() + " 님의 소리가 한 주씩 쌓이는 곳");
           JTabbedPane tabs = new JTabbedPane();
           tabs.addTab("개인 곡", songList(songs, false));
-          tabs.addTab("공동 곡 · 로컬 모의", songList(songs, true));
+          tabs.addTab(service.remote() ? "공동 곡 · 원격" : "공동 곡 · 로컬 모의", songList(songs, true));
           p.add(tabs);
           p.add(
               Theme.row(
@@ -617,6 +743,10 @@ public final class MMM extends JFrame {
   }
 
   void edit(Phrase value, LocalDate date) {
+    if (!date.equals(service.today()) || (value != null && !value.author().equals(service.user()))) {
+      error(new IllegalArgumentException("본인의 오늘 기록만 편집할 수 있습니다."));
+      return;
+    }
     Phrase draft =
         value == null
             ? new Phrase(
@@ -637,7 +767,7 @@ public final class MMM extends JFrame {
                     current.bpm(),
                     value.instrument(),
                     value.memo(),
-                    value.notes())
+                    value.notes(), value.rests(), value.expressions())
                 : value;
     EditorPanel next = new EditorPanel(this, current, draft);
     show("S06", next);
@@ -645,7 +775,7 @@ public final class MMM extends JFrame {
   }
 
   public void saveEditor(Runnable after) {
-    if (editor == null) return;
+    if (editor == null || busy) return;
     editor.stop();
     final Phrase draft;
     try {
@@ -666,20 +796,20 @@ public final class MMM extends JFrame {
         new JLabel(
             "음 "
                 + draft.notes().size()
-                + "개 · "
+                + "개 · 쉼 " + draft.rests().size() + "개 · "
                 + draft.bpm()
                 + " BPM · 기존 버전 "
                 + draft.version()));
     JTextArea memo = new JTextArea(draft.memo(), 2, 28);
     memo.setEditable(false);
     confirm.add(memo);
-    confirm.add(new JLabel("이 기기의 로컬 저장소에 저장합니다."));
+    confirm.add(new JLabel(service.storageDescription()));
     if (JOptionPane.showConfirmDialog(this, confirm, "D03 · 저장 확인", JOptionPane.OK_CANCEL_OPTION)
         != JOptionPane.OK_OPTION) return;
     work(
         () -> service.save(draft),
         saved -> {
-          editor.dirty = false;
+          editor.saved(saved);
           after.run();
         });
   }
@@ -752,6 +882,19 @@ public final class MMM extends JFrame {
     week();
   }
 
+  void rememberSelection(LocalDate date, String author) {
+    selectedDay = date;
+    selectedAuthor = author;
+  }
+
+  LocalDate selectedDate(LocalDate monday) {
+    return selectedDay != null && !selectedDay.isBefore(monday) && selectedDay.isBefore(monday.plusDays(7))
+        ? selectedDay : !service.today().isBefore(monday) && service.today().isBefore(monday.plusDays(7))
+            ? service.today() : monday;
+  }
+
+  String selectedAuthor() { return selectedAuthor == null ? service.user() : selectedAuthor; }
+
   void showInvite(Song song) {
     inviteDialog(song);
   }
@@ -807,11 +950,11 @@ public final class MMM extends JFrame {
     Song expected = current;
     JPanel p =
         Theme.page(
-            "S10", "곡·참여자 관리", "로컬 권한 확인 · 소유자: " + current.owner() + " · 저장하기 전 변경은 적용되지 않습니다.");
+            "S10", "곡·참여자 관리", (service.remote() ? "서버 권한 검사" : "로컬 권한 확인") + " · 소유자: " + current.owner() + " · 저장하기 전 변경은 적용되지 않습니다.");
     JTextField name = new JTextField(current.name(), 26);
     JSpinner bpm = new JSpinner(new SpinnerNumberModel(current.bpm(), 40, 200, 1));
     JComboBox<String> instrument = new JComboBox<>(INSTRUMENT_NAMES);
-    instrument.setSelectedIndex(instrumentIndex(current.instrument()));
+    selectInstrument(instrument,current.instrument());
     boolean owner = current.owner().equals(service.user());
     name.setEnabled(owner);
     bpm.setEnabled(owner);
@@ -828,7 +971,7 @@ public final class MMM extends JFrame {
                     new Object[] {
                       u,
                       u.equals(current.owner()) ? "소유자" : "참여자",
-                      u.equals(service.user()) ? "나" : "로컬 계정"
+                      u.equals(service.user()) ? "나" : service.remote() ? "원격 계정" : "로컬 계정"
                     })
             .toArray(Object[][]::new);
     JTable table =
@@ -846,7 +989,7 @@ public final class MMM extends JFrame {
             "곡 설정 저장",
             () -> {
               String title = name.getText();
-              int tempo = (int) bpm.getValue(), program = PROGRAMS[instrument.getSelectedIndex()];
+              int tempo = (int) bpm.getValue(), program = instrumentProgram(instrument);
               work(
                   () -> service.updateSong(expected, title, tempo, program),
                   song -> {
@@ -998,19 +1141,19 @@ public final class MMM extends JFrame {
 
   private void createDialog() {
     JTextField name = new JTextField(24);
-    JRadioButton personal = new JRadioButton("개인", true), shared = new JRadioButton("공동 · 로컬 모의");
+    JRadioButton personal = new JRadioButton("개인", true), shared = new JRadioButton(service.remote() ? "공동 · 원격" : "공동 · 로컬 모의");
     ButtonGroup group = new ButtonGroup();
     group.add(personal);
     group.add(shared);
     JSpinner bpm = new JSpinner(new SpinnerNumberModel(90, 40, 200, 1));
     JComboBox<String> inst = new JComboBox<>(INSTRUMENT_NAMES);
-    inst.setSelectedIndex(instrumentIndex(settings.instrument()));
+    selectInstrument(inst,settings.instrument());
     JPanel p = Theme.column();
     p.add(Theme.row(new JLabel("곡 이름"), name));
     p.add(Theme.row(personal, shared));
     p.add(Theme.row(new JLabel("BPM"), bpm, new JLabel("악기"), inst));
     JLabel validation = Theme.muted("곡 이름을 입력해 주세요.");
-    JLabel illustration = new JLabel(ArtAssets.instrument(PROGRAMS[inst.getSelectedIndex()], 70));
+    JLabel illustration = new JLabel(ArtAssets.instrument(instrumentProgram(inst), 70));
     p.add(Theme.row(illustration, validation));
     Runnable validate =
         () ->
@@ -1041,14 +1184,14 @@ public final class MMM extends JFrame {
     inst.addItemListener(
         e -> {
           if (e.getStateChange() == ItemEvent.SELECTED)
-            illustration.setIcon(ArtAssets.instrument(PROGRAMS[inst.getSelectedIndex()], 70));
+            illustration.setIcon(ArtAssets.instrument(instrumentProgram(inst), 70));
         });
 
     if (JOptionPane.showConfirmDialog(this, p, "D01 · 새 곡 만들기", JOptionPane.OK_CANCEL_OPTION)
         == JOptionPane.OK_OPTION) {
       String title = name.getText();
       boolean joint = shared.isSelected();
-      int tempo = (int) bpm.getValue(), program = PROGRAMS[inst.getSelectedIndex()];
+      int tempo = (int) bpm.getValue(), program = instrumentProgram(inst);
       work(
           () -> service.create(title, joint, tempo, program),
           s -> {
@@ -1068,7 +1211,7 @@ public final class MMM extends JFrame {
             JTextField code = new JTextField(value, 28);
             code.setEditable(false);
             JPanel p = Theme.column();
-            p.add(new JLabel("같은 기기의 로컬 초대 · 발급일부터 7일간 유효"));
+            p.add(new JLabel((service.remote() ? "이 서버의 공동 곡에 초대 · " : "같은 기기의 로컬 초대 · ") + "발급일부터 7일간 유효"));
             p.add(code);
             p.add(
                 Theme.button(
@@ -1085,7 +1228,7 @@ public final class MMM extends JFrame {
     }
     JTextField code = new JTextField(28);
     JPanel p = Theme.column();
-    p.add(new JLabel("소유자가 발급한 로컬 초대 코드를 입력하세요."));
+    p.add(new JLabel(service.remote() ? "이 서버의 곡 소유자가 발급한 초대 코드를 입력하세요." : "소유자가 발급한 로컬 초대 코드를 입력하세요."));
     p.add(code);
     if (JOptionPane.showConfirmDialog(this, p, "D02 · 초대 참여", JOptionPane.OK_CANCEL_OPTION)
         == JOptionPane.OK_OPTION) {
@@ -1107,7 +1250,7 @@ public final class MMM extends JFrame {
     JPanel p = Theme.page("S12", "나에게 맞는 소리", "설정은 계정별로 이 기기에 저장됩니다.");
     JSlider volume = new JSlider(0, 100, settings.volume());
     JComboBox<String> inst = new JComboBox<>(INSTRUMENT_NAMES);
-    inst.setSelectedIndex(instrumentIndex(settings.instrument()));
+    selectInstrument(inst,settings.instrument());
     JCheckBox count = new JCheckBox("실시간 녹음 전 카운트인", settings.countIn());
     JCheckBox metronome = new JCheckBox("카운트인·녹음 중 메트로놈 소리", settings.metronome());
     JSpinner countBeats = new JSpinner(new SpinnerNumberModel(settings.countInBeats(), 1, 8, 1));
@@ -1122,15 +1265,15 @@ public final class MMM extends JFrame {
     tabs.addTab("소리", sound);
     JTextArea account =
         new JTextArea(
-            "로컬 계정: "
+            (service.remote() ? "원격 계정: " : "로컬 계정: ")
                 + service.user()
                 + "\n\n저장 위치: "
-                + dataPath
+                + (service.remote() ? service.storageDescription() : dataPath)
                 + "\n\n"
                 + (service.demo
                     ? "명시적 시연 기준일: " + service.today() + "\n실제 날짜와 분리된 데모 데이터입니다."
-                    : "날짜: 기기의 Asia/Seoul 오늘. 서버 연결 시 서버 날짜로 교체 예정.")
-                + "\n\nSpring Boot / PostgreSQL 연동은 미구현입니다.");
+                    : service.remote() ? "날짜: 서버의 Asia/Seoul 오늘. 저장 시 서버가 다시 검사합니다." : "날짜: 기기의 Asia/Seoul 오늘.")
+                + (service.remote() ? "\n\n서버 세션 인증 / HTTP API / PostgreSQL 저장" : "\n\n원격 모드는 --server=HTTPS주소로 실행합니다."));
     account.setEditable(false);
     account.setLineWrap(true);
     tabs.addTab("계정·데이터", account);
@@ -1143,7 +1286,7 @@ public final class MMM extends JFrame {
                   Settings next =
                       new Settings(
                           volume.getValue(),
-                          PROGRAMS[inst.getSelectedIndex()],
+                          instrumentProgram(inst),
                           count.isSelected(),
                           metronome.isSelected(),
                           (int) countBeats.getValue());
@@ -1164,10 +1307,9 @@ public final class MMM extends JFrame {
                 "로그아웃",
                 () -> {
                   if (JOptionPane.showConfirmDialog(
-                          this, "로컬 계정에서 로그아웃할까요?", "D05 · 로그아웃", JOptionPane.OK_CANCEL_OPTION)
+                          this, "계정에서 로그아웃할까요?", "D05 · 로그아웃", JOptionPane.OK_CANCEL_OPTION)
                       == JOptionPane.OK_OPTION) {
-                    service.logout();
-                    start();
+                    work(()->{service.logout();return null;},ignored->start());
                   }
                 })),
         BorderLayout.SOUTH);
@@ -1187,18 +1329,26 @@ public final class MMM extends JFrame {
                 + "5. 음 선택 → 길이·높낮이·세기 조절\n"
                 + "6. MIDI 미리 듣기 → 저장 → D03 확인\n"
                 + "7. 주간의 ‘저장본 감상’ → 감상하기\n\n"
-                + "건반 클릭 후 A S D F G H J K로 연주할 수 있어요."));
+                + "건반 클릭 후 A S D F G H J K로 연주할 수 있어요.\n"
+                + "검은 건반은 W E T Y U, 양옆 ‹ › 버튼으로 낮은 음과 높은 음을 찾아보세요.\n"
+                + "건반에 포커스가 있으면 ← →로 한 옥타브 이동, Home으로 기본 음역으로 돌아옵니다."));
     topics.addTab(
         "입력·편집",
         helpText(
             "단계 입력: 누를 때마다 1박. 시간 제한 없이 4박을 채워요.\n"
                 + "실시간 입력: ‘녹음 시작’ 후 4박 카운트인, 이어서 4박 녹음.\n"
                 + "모든 입력은 1/4박 단위로 맞추고 마디 끝에서 자릅니다.\n"
-                + "펜타토닉: 초보자도 어울리는 음을 쉽게 고릅니다.\n"
+                + "흰 건반: A S D F G H J K · 검은 건반: W E T Y U.\n"
+                + "양옆 버튼으로 한 옥타브씩 이동합니다. C-1–G9의 128개 음을 클릭할 수 있어요.\n"
+                + "단축키도 현재 음역을 따릅니다. Home은 기본 C3–C6 음역으로 돌아갑니다.\n"
+                + "펜타토닉: 도·레·미·솔·라를 연주하며 나머지 건반은 쉬어요.\n"
                 + "음 선택 후 드래그는 시간·높이, 슬라이더는 길이·높낮이·세기.\n"
-                + "‘쉼 1박’은 다음 입력 위치를 이동합니다. 빈 부분은 무음입니다.\n"
+                + "‘쉼 1박’은 명시적인 쉼을 남기고 다음 입력 위치를 이동합니다.\n"
+                + "‘표현 ···’에서 짧게 끊기·선택 구간 크레센도·쉼 변환을 선택하세요.\n"
+                + "쉼은 아래쪽 띠로 표시됩니다. 선택·드래그·길이 편집·삭제가 가능합니다.\n"
                 + "포커스를 잃거나 화면을 옮기면 모든 소리를 멈춥니다.\n"
-                + "메모는 20자, 공백 마디도 쉼으로 저장할 수 있어요.\n"
+                + "메모는 선택 사항이며 공백을 포함해 20자입니다.\n"
+                + "쉼만 있는 마디도 저장할 수 있습니다. 음과 쉼이 없는 빈 마디는 먼저 입력하세요.\n"
                 + "Cmd/Ctrl+Z: 실행 취소, Shift+Cmd/Ctrl+Z: 다시 실행, Cmd/Ctrl+S: 저장.\n"
                 + "건반 포커스에서 Space: 미리 듣기/정지. Escape: 모든 소리 정지.\n"
                 + "재생 막대에서 위치를 이동하거나 일시정지·반복을 선택할 수 있습니다."));
@@ -1208,7 +1358,7 @@ public final class MMM extends JFrame {
             "오늘: 새 기록 또는 기존 기록 편집.\n"
                 + "지난 날짜: 읽기 전용 감상. 미래: 선택 불가.\n"
                 + "저장본 감상은 오늘도 읽기 전용입니다.\n"
-                + "일반 모드는 기기의 서울 날짜를 사용합니다 (서버 미연결).\n"
+                + "로컬 모드는 기기, 원격 모드는 서버의 서울 날짜를 사용합니다.\n"
                 + "시연 모드는 --demo-date=YYYY-MM-DD로 명시하며 저장소가 분리됩니다.\n"
                 + "자정이 지나면 이전 날짜 초안 저장은 거부하고 내용을 유지합니다.\n"
                 + "저장 실패 시 편집 초안 유지 → 문제 해결 후 저장 재시도.\n"
@@ -1218,8 +1368,10 @@ public final class MMM extends JFrame {
         "소리 덩어리",
         helpText(
             "덩어리는 음 하나의 의미를 담습니다.\n\n"
-                + "꼬리가 길수록: 오래 소리남 (NoteEvent.duration).\n"
+                + "꼬리가 길수록: 논리적인 음 길이가 길어집니다.\n"
+                + "스타카토 점은 이 길이를 유지하며 실제 소리만 절반 길이로 끊습니다.\n"
                 + "몸통이 두꺼울수록: 세게 소리남 (NoteEvent.velocity).\n"
+                + "크레센도는 지정한 구간의 시작 위치에 따라 두께와 재생 세기를 함께 바꿉니다.\n"
                 + "위에 있을수록: 높은 음 (NoteEvent.pitch).\n"
                 + "가로 위치: 소리가 시작되는 박 (NoteEvent.start).\n\n"
                 + "기본은 먹색, 선택하면 주황 윤곽, 재생 중이면 주황으로 빛납니다.\n"
@@ -1230,9 +1382,10 @@ public final class MMM extends JFrame {
         "구현 범위",
         helpText(
             "Java Swing 2D GUI / Java Sound MIDI / 로컬 파일 저장\n"
-                + "계정·공동곡·초대는 로컬 모의 구현이며 실제 서버 인증이 아닙니다.\n"
+                + "로컬 모드의 공동곡은 같은 기기의 모의 기능입니다.\n"
                 + "S10 로컬 곡 설정·초대·탈퇴, S11 시간 비례 악보·인쇄를 제공합니다.\n"
-                + "서버 날짜·HTTP·Spring Boot·PostgreSQL·원격 협업은 미구현입니다.\n"
+                + "원격 모드는 Spring Boot·PostgreSQL 서버에서 인증하고 공동 기록을 공유합니다.\n"
+                + "--server=HTTPS주소 또는 MMM_SERVER_URL로 원격 모드를 선택합니다.\n"
                 + "카운트인·소리 메트로놈·편집 실행 취소/다시 실행을 제공합니다.\n"
                 + "주간 재생은 곡 BPM 하나를 기준으로 일곱 마디를 재생합니다.\n"
                 + "서로 다른 날짜의 개별 BPM은 감상 화면에서 적용됩니다."));
@@ -1256,22 +1409,31 @@ public final class MMM extends JFrame {
   }
 
   public static void main(String[] args) throws Exception {
+    if (args.length == 1 && args[0].equals("--emotion-palette")) {
+      EmotionPalette.main(new String[0]);
+      return;
+    }
     Path root = Path.of(System.getProperty("user.home"), ".mmm");
     LocalDate demoDate = null;
+    String server=System.getenv("MMM_SERVER_URL");
     for (String a : args) {
       if (a.startsWith("--data=")) root = Path.of(a.substring(7));
       else if (a.startsWith("--demo-date=")) demoDate = LocalDate.parse(a.substring(12));
+      else if (a.startsWith("--server=")) server=a.substring(9);
       else throw new IllegalArgumentException("알 수 없는 실행 옵션: " + a);
     }
     boolean demo = demoDate != null;
+    boolean remote=server!=null&&!server.isBlank();
+    if(demo&&remote)throw new IllegalArgumentException("시연 모드와 원격 모드는 함께 사용할 수 없습니다.");
     Clock clock =
         demo
             ? Clock.fixed(
                 demoDate.atTime(12, 0).atZone(ZoneId.of("Asia/Seoul")).toInstant(),
                 ZoneId.of("Asia/Seoul"))
             : Clock.system(ZoneId.of("Asia/Seoul"));
-    Path directory = root.resolve(demo ? "demo-" + demoDate : "local");
-    MusicService service = new MusicService(new LocalRepository(directory), clock, demo);
+    Path directory = root.resolve(remote ? "remote" : demo ? "demo-" + demoDate : "local");
+    Repository repository=remote?new RemoteRepository(java.net.URI.create(server)):new LocalRepository(directory);
+    MusicService service = new MusicService(repository, clock, demo);
     SwingUtilities.invokeLater(
         () -> {
           Theme.install();

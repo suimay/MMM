@@ -44,7 +44,7 @@ public final class ModelRepositoryTest {
     check(Model.monday(day).equals(LocalDate.of(2026, 10, 26)), "Monday boundary");
     rejects(() -> new NoteEvent(1800, 240, 60, 80), "overflow");
     rejects(() -> new NoteEvent(1, 120, 60, 80), "grid");
-    rejects(() -> new NoteEvent(0, 120, 85, 80), "pitch");
+    rejects(() -> new NoteEvent(0, 120, 128, 80), "pitch");
     rejects(() -> new NoteEvent(0, 120, 60, 0), "velocity");
     List<NoteEvent> notes =
         new ArrayList<>(List.of(new NoteEvent(0, 480, 60, 80), new NoteEvent(480, 1440, 67, 90)));

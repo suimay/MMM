@@ -287,7 +287,7 @@ public final class JournalPanel extends JPanel {
         while (g.getFontMetrics().stringWidth(words) > getWidth() - 28 && words.length() > 2)
           words = words.substring(0, words.length() - 2) + "…";
         g.drawString(words, 14, 55);
-        SoundShape.miniature(g, value.notes(), 14, 68, getWidth() - 32, 34);
+        SoundShape.miniature(g, value.visualNotes(), 14, 68, getWidth() - 32, 34);
         g.setFont(Theme.font(11, false));
         g.setColor(Theme.MUTED);
         g.drawString(

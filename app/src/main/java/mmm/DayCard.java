@@ -32,10 +32,15 @@ public final class DayCard extends JPanel {
             Graphics2D g = (Graphics2D) raw.create();
             if (phrase != null && !phrase.notes().isEmpty())
               SoundShape.miniature(
-                  g, phrase.notes(), 5, 12, getWidth() - 10, Math.max(35, getHeight() - 24));
+                  g, phrase.visualNotes(), 5, 12, getWidth() - 10, Math.max(35, getHeight() - 24));
             else {
               g.setColor(Theme.LINE);
               g.drawLine(8, getHeight() / 2, getWidth() - 8, getHeight() / 2);
+              if (phrase != null && !phrase.rests().isEmpty()) {
+                g.setFont(Theme.font(12, true));
+                g.setColor(Theme.MUTED);
+                g.drawString("명시적 쉼", 8, getHeight() / 2 - 10);
+              }
             }
             g.dispose();
           }

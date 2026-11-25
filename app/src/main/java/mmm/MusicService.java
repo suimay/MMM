@@ -1,11 +1,8 @@
 package mmm;
 
 import java.io.*;
-import java.security.*;
 import java.time.*;
 import java.util.*;
-import javax.crypto.*;
-import javax.crypto.spec.*;
 import mmm.Model.*;
 
 public final class MusicService {
@@ -21,6 +18,7 @@ public final class MusicService {
   }
 
   public LocalDate today() {
+    if (repository instanceof RemoteRepository remote) return remote.serverToday();
     return LocalDate.now(clock.withZone(ZoneId.of("Asia/Seoul")));
   }
 
@@ -28,41 +26,37 @@ public final class MusicService {
     return user;
   }
 
-  public void logout() {
+  public void logout() throws IOException {
+    if (repository instanceof RemoteRepository remote) remote.logoutRemote();
     user = null;
+  }
+
+  public boolean remote() { return repository instanceof RemoteRepository; }
+
+  public void reauthenticate(String id,char[] password) throws Exception {
+    if (!(repository instanceof RemoteRepository remote)) throw new IOException("원격 모드에서 다시 로그인하세요.");
+    if (user != null && !user.equals(id)) throw new IOException("초안 작성자와 같은 계정으로 로그인하세요.");
+    user = remote.login(id,password);
+  }
+
+  public String storageDescription() {
+    return repository instanceof RemoteRepository remote ? "서버에 저장 · " + remote.endpoint() : "이 기기에 저장 · 공동 기능은 로컬 모의";
   }
 
   public void register(String id, String nickname, char[] password, char[] confirmation)
       throws Exception {
-    if (!id.matches("[A-Za-z0-9_]{3,24}"))
-      throw new IllegalArgumentException("아이디는 영문·숫자·밑줄 3~24자입니다.");
-    if (nickname.isBlank() || nickname.length() > 20)
-      throw new IllegalArgumentException("닉네임은 1~20자입니다.");
-    if (password.length < 8 || !Arrays.equals(password, confirmation))
-      throw new IllegalArgumentException("비밀번호는 8자 이상이며 확인과 같아야 합니다.");
-    byte[] salt = new byte[16];
-    new SecureRandom().nextBytes(salt);
-    String encoded = Base64.getEncoder().encodeToString(salt);
-    repository.register(new Account(id, nickname, encoded, hash(password, encoded)));
-  }
-
-  private static String hash(char[] password, String salt) throws GeneralSecurityException {
-    PBEKeySpec spec = new PBEKeySpec(password, Base64.getDecoder().decode(salt), 120000, 256);
-    try {
-      return Base64.getEncoder()
-          .encodeToString(
-              SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
-                  .generateSecret(spec)
-                  .getEncoded());
-    } finally {
-      spec.clearPassword();
-    }
+    PasswordCodec.validate(id, nickname, password);
+    if (!Arrays.equals(password, confirmation)) throw new IllegalArgumentException("비밀번호 확인이 일치하지 않습니다.");
+    if (repository instanceof RemoteRepository remote) { remote.signup(id,nickname,password); return; }
+    PasswordCodec.Digest digest=PasswordCodec.create(password);
+    repository.register(new Account(id,nickname,digest.salt(),digest.hash()));
   }
 
   public void login(String id, char[] password) throws Exception {
     user = null;
+    if (repository instanceof RemoteRepository remote) { user=remote.login(id,password); return; }
     Account a = repository.account(id).orElseThrow(() -> new IOException("아이디 또는 비밀번호를 확인하세요."));
-    if (!MessageDigest.isEqual(hash(password, a.salt()).getBytes(), a.hash().getBytes()))
+    if (!PasswordCodec.verify(password,a.salt(),a.hash()))
       throw new IOException("아이디 또는 비밀번호를 확인하세요.");
     user = id;
   }
@@ -73,7 +67,7 @@ public final class MusicService {
   }
 
   private void requireLogin() throws IOException {
-    if (user == null) throw new IOException("로컬 계정 로그인이 필요합니다.");
+    if (user == null) throw new IOException("계정 로그인이 필요합니다.");
   }
 
   public Song access(String id) throws IOException {
@@ -89,6 +83,7 @@ public final class MusicService {
   }
 
   public List<EnsembleData.Member> participants(String songId) throws IOException {
+    if (repository instanceof RemoteRepository remote) return remote.participants(songId);
     Song song = access(songId);
     List<EnsembleData.Member> members = new ArrayList<>();
     for (String id : new TreeSet<>(song.members()))
@@ -101,16 +96,23 @@ public final class MusicService {
   }
 
   public Phrase save(Phrase draft) throws IOException {
+    if (repository instanceof RemoteRepository remote) {
+      requireLogin();
+      if (!draft.author().equals(user)) throw new IOException("다른 참여자의 기록은 변경할 수 없습니다.");
+      return remote.save(draft,draft.version());
+    }
     Song song = access(draft.songId());
     if (!draft.author().equals(user)) throw new IOException("다른 참여자의 기록은 변경할 수 없습니다.");
     if (!draft.date().equals(today()))
       throw new IOException("날짜가 바뀌었습니다. 오늘 기록만 저장할 수 있습니다. 초안은 유지됩니다.");
     if (song.shared() && draft.bpm() != song.bpm()) throw new IOException("공동곡은 공통 BPM을 사용합니다.");
+    if (draft.empty()) throw new IOException("음 또는 명시적인 쉼을 먼저 입력하세요.");
     return repository.save(draft, draft.version());
   }
 
   public Song create(String name, boolean shared, int bpm, int instrument) throws IOException {
     requireLogin();
+    if (repository instanceof RemoteRepository remote) return remote.create(name.strip(),shared,bpm,instrument);
     Song s =
         new Song(
             UUID.randomUUID().toString(),

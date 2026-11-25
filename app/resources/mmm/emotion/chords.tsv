@@ -1,0 +1,8 @@
+id	symbol	quality	display_name	midi_notes	instrument_program	bpm	duration_ticks	velocity	inversion	voicing	stimulus_context	validation_status	equivalence_to_research_stimulus
+c_major	C	major	C 장3화음	60,64,67	0	60	1920	72	root_position	close	standalone	not_validated	not_equivalent
+c_minor	Cm	minor	C 단3화음	60,63,67	0	60	1920	72	root_position	close	standalone	not_validated	not_equivalent
+c_major_seventh	Cmaj7	major_seventh	C 장7화음	60,64,67,71	0	60	1920	72	root_position	close	standalone	not_validated	not_equivalent
+c_minor_seventh	Cm7	minor_seventh	C 단7화음	60,63,67,70	0	60	1920	72	root_position	close	standalone	not_validated	not_equivalent
+c_augmented	Caug	augmented	C 증3화음	60,64,68	0	60	1920	72	root_position	close	standalone	not_validated	not_equivalent
+c_diminished	Cdim	diminished	C 감3화음	60,63,66	0	60	1920	72	root_position	close	standalone	not_validated	not_equivalent
+c_dominant_seventh	C7	dominant_seventh	C 도미넌트7화음	60,64,67,70	0	60	1920	72	root_position	close	standalone	not_validated	not_equivalent

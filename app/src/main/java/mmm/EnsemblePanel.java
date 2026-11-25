@@ -46,7 +46,7 @@ public final class EnsemblePanel extends JPanel {
     setBorder(BorderFactory.createEmptyBorder(24, 30, 20, 30));
     JPanel title = Theme.column();
     title.add(Theme.label("함께, 같은 박자로", 26));
-    title.add(Theme.muted(song.name() + " · " + song.bpm() + " BPM · 참여자별 악기와 소리를 비교하세요 · 로컬 모의"));
+    title.add(Theme.muted(song.name() + " · " + song.bpm() + " BPM · 참여자별 악기와 소리를 비교하세요 · " + (app.service.remote() ? "원격 공동 기록" : "로컬 모의")));
     for (int d = 0; d < 7; d++) {
       LocalDate day = week.plusDays(d);
       if (!day.isAfter(app.service.today())) dates.addItem(day);
@@ -286,7 +286,7 @@ public final class EnsemblePanel extends JPanel {
         if (phrase != null) {
           String notes =
               phrase.notes().stream()
-                  .filter(n -> inBar >= n.start() && inBar < n.start() + n.duration())
+                  .filter(n -> inBar >= n.start() && inBar < n.start() + n.gateDuration())
                   .map(n -> NoteCanvas.noteName(n.pitch()))
                   .distinct()
                   .collect(java.util.stream.Collectors.joining("·"));
@@ -394,6 +394,7 @@ public final class EnsemblePanel extends JPanel {
       Graphics2D g = (Graphics2D) raw.create();
       g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
       int width = Math.max(1, getWidth() - 36), bars = whole.isSelected() ? 7 : 1;
+      int[] pitchRange=SoundShape.pitchRange(records.stream().flatMap(p->p.notes().stream()).toList());
       g.setFont(Theme.font(11, false));
       g.setColor(Theme.MUTED);
       for (int b = 0; b < bars; b++) {
@@ -415,17 +416,17 @@ public final class EnsemblePanel extends JPanel {
         if (phrase == null) continue;
         for (NoteEvent n : phrase.notes()) {
           double x = 18 + (b * Model.BAR + n.start()) * width / (double) (bars * Model.BAR),
-              y = 25 + (84 - n.pitch()) * (getHeight() - 38) / 36.0;
+              y = 25 + (pitchRange[1] - n.pitch()) * (getHeight() - 38) / (double)(pitchRange[1]-pitchRange[0]);
           Shape shape =
               SoundShape.contour(
                   x,
                   y,
                   n.duration() * width / (double) (bars * Model.BAR),
-                  Math.min(13, SoundShape.thickness(n.velocity()) * .4));
+                  Math.min(13, SoundShape.thickness(phrase.effectiveVelocity(n)) * .4));
           long pos = auditioning ? -1 : app.midi.position();
           boolean active =
               pos >= b * Model.BAR + n.start()
-                  && pos < b * Model.BAR + n.start() + n.duration()
+                  && pos < b * Model.BAR + n.start() + n.gateDuration()
                   && levels().get(member.id()) > 0;
           SoundShape.paint(g, shape, false, active, levels().get(member.id()) == 0);
         }

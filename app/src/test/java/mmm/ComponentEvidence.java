@@ -195,6 +195,7 @@ public final class ComponentEvidence {
           .append(String.join(", ", snapshot.layouts()))
           .append("\n");
     }
-    Files.writeString(Path.of("docs/components.md"), text);
+    Files.createDirectories(Path.of("build", "evidence"));
+    Files.writeString(Path.of("build", "evidence", "components.md"), text);
   }
 }

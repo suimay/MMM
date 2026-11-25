@@ -87,7 +87,8 @@ public final class SoundShapeTest {
       g.drawString(r == 0 ? "길게" : r == 1 ? "세게" : "높게", 565, y + 45);
     }
     g.dispose();
-    ImageIO.write(guide, "png", new java.io.File("docs/sound-shape-semantics.png"));
+    java.nio.file.Files.createDirectories(java.nio.file.Path.of("build", "evidence"));
+    ImageIO.write(guide, "png", new java.io.File("build/evidence/sound-shape-semantics.png"));
     System.out.println("PASS: " + count + " semantic sound geometry and read-only checks");
   }
 }

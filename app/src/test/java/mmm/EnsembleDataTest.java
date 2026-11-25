@@ -41,8 +41,8 @@ public final class EnsembleDataTest {
     check(
         single.stream()
             .filter(p -> p.phrase().author().equals("star"))
-            .allMatch(p -> p.phrase().instrument() == 12),
-        "friend instrument remains marimba");
+            .allMatch(p -> p.phrase().instrument() == 33),
+        "new sample friend uses the bass voice");
     List<MidiEngine.Part> week = EnsembleData.parts(records, members, all, day, true);
     check(week.size() == 21, "seven days times three composers");
     check(
