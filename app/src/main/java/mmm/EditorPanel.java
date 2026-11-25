@@ -19,7 +19,7 @@ public final class EditorPanel extends JPanel {
   public final JTextField memo = new JTextField(20);
   private final JSpinner bpm;
   private final JComboBox<String> instrument = new JComboBox<>(MMM.INSTRUMENT_NAMES);
-  private final JCheckBox pentatonic = new JCheckBox("펜타토닉 · 어울리는 음", true);
+  private final JCheckBox pentatonic = new JCheckBox("5음계 · 어울리는 음만", false);
   private final JComboBox<String> mode =
       new JComboBox<>(new String[] {"단계 입력 · 시간 제한 없이", "실시간 입력 · 4박 녹음"});
   private final JSlider length = new JSlider(1, 16, 4),

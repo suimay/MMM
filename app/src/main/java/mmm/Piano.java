@@ -74,7 +74,7 @@ public final class Piano extends JPanel {
         });
   }
 
-  private int pitch(int i) {
+  public int pitch(int i) {
     return 60
         + (pentatonic.getAsBoolean()
                 ? new int[] {0, 2, 4, 7, 9, 12, 14, 16}
@@ -101,8 +101,10 @@ public final class Piano extends JPanel {
       g.setColor(Theme.LINE);
       g.drawRoundRect(x + 1, 1, w - 3, getHeight() - 3, 5, 5);
       g.setColor(Theme.INK);
-      g.setFont(Theme.font(12, false));
-      g.drawString(Character.toString(keys.charAt(i)), x + 12, getHeight() - 23);
+      g.setFont(Theme.font(17, true));
+      g.drawString(solfege(p), x + 12, Math.max(25, getHeight() - 48));
+      g.setFont(Theme.font(11, false));
+      g.drawString(Character.toString(keys.charAt(i)), x + 12, getHeight() - 25);
       g.setColor(Theme.MUTED);
       g.drawString(NoteCanvas.noteName(p), x + 12, getHeight() - 8);
     }
@@ -111,5 +113,10 @@ public final class Piano extends JPanel {
       g.drawRect(0, 0, getWidth() - 1, getHeight() - 1);
     }
     g.dispose();
+  }
+
+  public static String solfege(int pitch) {
+    return new String[] {"도", "도♯", "레", "레♯", "미", "파", "파♯", "솔", "솔♯", "라", "라♯", "시"}
+        [Math.floorMod(pitch, 12)];
   }
 }

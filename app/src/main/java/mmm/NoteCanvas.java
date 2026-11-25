@@ -33,8 +33,41 @@ public final class NoteCanvas extends JPanel {
     this.select = select;
     setPreferredSize(new Dimension(800, 300));
     setBackground(Theme.SURFACE);
-    setFocusable(editable);
-    if (!editable) return;
+    setFocusable(editable || select != null);
+    if (!editable) {
+      if (select != null) {
+        addMouseListener(
+            new MouseAdapter() {
+              public void mousePressed(MouseEvent e) {
+                if (!SwingUtilities.isLeftMouseButton(e)) return;
+                requestFocusInWindow();
+                select.accept(hit(e.getX(), e.getY()));
+              }
+            });
+        for (String direction : new String[] {"LEFT", "RIGHT"}) {
+          getInputMap().put(KeyStroke.getKeyStroke(direction), direction);
+          getActionMap()
+              .put(
+                  direction,
+                  new AbstractAction() {
+                    public void actionPerformed(ActionEvent e) {
+                      int size = source.get().size();
+                      if (size > 0)
+                        select.accept(
+                            Math.max(
+                                0,
+                                Math.min(
+                                    size - 1,
+                                    inspected < 0
+                                        ? 0
+                                        : inspected + (direction.equals("LEFT") ? -1 : 1))));
+                    }
+                  });
+        }
+        setToolTipText("소리를 클릭해 음 정보를 확인하세요. ← →로도 선택할 수 있어요.");
+      }
+      return;
+    }
     for (String direction : new String[] {"LEFT", "RIGHT", "UP", "DOWN"}) {
       getInputMap().put(KeyStroke.getKeyStroke(direction), direction);
       getActionMap()
