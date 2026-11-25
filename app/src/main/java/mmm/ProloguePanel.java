@@ -9,7 +9,8 @@ import java.util.List;
 import javax.swing.*;
 import mmm.Model.*;
 
-/** S01: an audible identity. Letter height maps to pitch, width maps to note duration. */
+/** Legacy S01 renderer: letter height maps to pitch, width to note duration.
+ * The m glyph, green palette and layout are not redesign constraints; see docs/DESIGN.md. */
 public final class ProloguePanel extends JPanel {
   private static final Color GREEN = new Color(38, 65, 55);
   private final MMM app;
