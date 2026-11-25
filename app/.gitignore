@@ -7,6 +7,7 @@ dist/
 docs/reference.png
 docs/VERIFICATION-v1.md
 *.properties
+!resources/mmm/emotion/catalog.properties
 *.properties.*
 .env
 .env.*
