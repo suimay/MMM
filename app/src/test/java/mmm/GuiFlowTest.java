@@ -75,7 +75,7 @@ public final class GuiFlowTest {
 
   static AbstractButton button(Container root, String text) {
     for (Component c : root.getComponents()) {
-      if (c instanceof AbstractButton b && b.getText().equals(text)) return b;
+      if (c instanceof AbstractButton b && b.getText().replace("▶ ", "").equals(text)) return b;
       if (c instanceof Container container) {
         AbstractButton b = button(container, text);
         if (b != null) return b;
@@ -87,7 +87,7 @@ public final class GuiFlowTest {
   static AbstractButton lastButton(Container root, String text) {
     AbstractButton found = null;
     for (Component c : root.getComponents()) {
-      if (c instanceof AbstractButton b && b.getText().equals(text)) found = b;
+      if (c instanceof AbstractButton b && b.getText().replace("▶ ", "").equals(text)) found = b;
       if (c instanceof Container container) {
         AbstractButton b = lastButton(container, text);
         if (b != null) found = b;
@@ -206,7 +206,8 @@ public final class GuiFlowTest {
             key(piano, KeyEvent.VK_D, 'd', false);
             check(app.editor.notes.size() == 2, "step input creates notes");
             NoteCanvas canvas = app.editor.canvas;
-            int x = 52 + 25, y = 30 + (84 - 60) * (canvas.getHeight() - 65) / 36;
+            java.awt.geom.Point2D point = canvas.noteCenter(app.editor.notes.get(0));
+            int x = (int) point.getX() + 15, y = (int) point.getY();
             MouseEvent press =
                 new MouseEvent(
                     canvas,
@@ -247,16 +248,106 @@ public final class GuiFlowTest {
             check(app.editor.notes.get(0).pitch() == 60, "undo restores pre-drag notes");
             app.editor.redo();
             check(app.editor.notes.get(0).pitch() == editedPitch, "redo restores edited notes");
+            canvas.selected = 0;
+            NoteEvent resizeBefore = app.editor.notes.get(0);
+            java.awt.geom.Point2D tail = canvas.tailPoint(resizeBefore);
+            for (MouseListener listener : canvas.getMouseListeners())
+              listener.mousePressed(
+                  new MouseEvent(
+                      canvas,
+                      MouseEvent.MOUSE_PRESSED,
+                      System.currentTimeMillis(),
+                      0,
+                      (int) tail.getX(),
+                      (int) tail.getY(),
+                      1,
+                      false));
+            for (MouseMotionListener listener : canvas.getMouseMotionListeners())
+              listener.mouseDragged(
+                  new MouseEvent(
+                      canvas,
+                      MouseEvent.MOUSE_DRAGGED,
+                      System.currentTimeMillis(),
+                      0,
+                      (int) tail.getX() + 35,
+                      (int) tail.getY(),
+                      0,
+                      false));
+            for (MouseListener listener : canvas.getMouseListeners())
+              listener.mouseReleased(
+                  new MouseEvent(
+                      canvas,
+                      MouseEvent.MOUSE_RELEASED,
+                      System.currentTimeMillis(),
+                      0,
+                      (int) tail.getX() + 35,
+                      (int) tail.getY(),
+                      1,
+                      false));
+            check(
+                app.editor.notes.get(0).duration() > resizeBefore.duration(),
+                "tail handle changes NoteEvent duration");
+            check(
+                app.editor.notes.get(0).pitch() == resizeBefore.pitch()
+                    && app.editor.notes.get(0).start() == resizeBefore.start(),
+                "tail resize preserves start and pitch");
+            app.editor.undo();
+            check(
+                app.editor.notes.get(0).equals(resizeBefore), "undo restores entire resized glyph");
             app.editor.memo.setText("핵심 경로 검증");
             click("편집 전 듣기");
-            click("MIDI 미리 듣기");
+            click("들어보기");
             app.midi.pauseResume();
             check(app.midi.paused(), "pause transport");
             app.midi.seek(960);
             check(app.midi.cursor() == 960, "seek while paused");
             app.midi.pauseResume();
             check(app.midi.playing(), "resume transport");
+            java.awt.geom.Point2D picked = canvas.noteCenter(app.editor.notes.get(0));
+            for (MouseListener listener : canvas.getMouseListeners())
+              listener.mousePressed(
+                  new MouseEvent(
+                      canvas,
+                      MouseEvent.MOUSE_PRESSED,
+                      System.currentTimeMillis(),
+                      0,
+                      (int) picked.getX() + 15,
+                      (int) picked.getY(),
+                      1,
+                      false));
+            for (MouseListener listener : canvas.getMouseListeners())
+              listener.mouseReleased(
+                  new MouseEvent(
+                      canvas,
+                      MouseEvent.MOUSE_RELEASED,
+                      System.currentTimeMillis(),
+                      0,
+                      (int) picked.getX() + 15,
+                      (int) picked.getY(),
+                      1,
+                      false));
+            java.lang.reflect.Method tick = EditorPanel.class.getDeclaredMethod("tick");
+            tick.setAccessible(true);
+            tick.invoke(app.editor);
             capture("S06-editor");
+            app.setSize(1060, 780);
+            app.validate();
+            check(app.editor.piano.isShowing(), "keyboard available at minimum window size");
+            check(
+                app.editor.piano.getLocationOnScreen().y + app.editor.piano.getHeight()
+                    < app.getLocationOnScreen().y + app.getHeight(),
+                "keyboard stays inside minimum frame");
+            check(
+                button(app.editor, "표현 ···").isShowing(),
+                "selected properties available at minimum size");
+            check(
+                button(app.editor, "표현 ···").getLocationOnScreen().y
+                        + button(app.editor, "표현 ···").getHeight()
+                    < app.editor.piano.getLocationOnScreen().y,
+                "selected property actions stay above keyboard");
+            capture("S06-minimum");
+            app.setSize(1180, 850);
+            app.validate();
             dialog("계속 편집");
             app.guard(
                 () -> {
