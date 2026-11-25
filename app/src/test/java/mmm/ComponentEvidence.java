@@ -54,7 +54,9 @@ public final class ComponentEvidence {
     Map<String, Integer> types = new TreeMap<>(), events = new TreeMap<>();
     Set<String> layouts = new TreeSet<>();
     walk(root, types, events, layouts);
-    snapshots.putIfAbsent(id, new Snapshot(id, image, types, events, layouts));
+    if (image.equals("S05-personal.png"))
+      snapshots.put(id, new Snapshot(id, image, types, events, layouts));
+    else snapshots.putIfAbsent(id, new Snapshot(id, image, types, events, layouts));
     write();
   }
 
@@ -139,7 +141,7 @@ public final class ComponentEvidence {
             "# MMM 화면별 Java 컴포넌트·이벤트 소개표\n\n"
                 + "실제 Swing 실행 중 생성된 컴포넌트 트리와 `mmm.*` 코드가 등록한 리스너를 수집했습니다. 공통 메뉴·작업 표시와 접혀 있는 설정을"
                 + " 포함하며, 운영체제 기본 리스너는 이벤트 수에서 제외했습니다. 목록/표 셀 렌더러처럼 필요 시 재사용되는 객체는 트리 수에 전부 들어가지 않아"
-                + " 역할 설명을 함께 보세요.\n\n"
+                + " 역할 설명을 함께 보세요. JLabel(ImageIcon)은 JLabel의 이미지 사용 표시이며 별도 컴포넌트 클래스로 세지 않습니다.\n\n"
                 + "## PPT에 넣을 요약\n\n"
                 + "| 화면 | 사용자 기능·시연 행동 | 주요 컴포넌트 | 이벤트 | 실행 캡처 |\n"
                 + "|---|---|---|---|---|\n");
@@ -161,12 +163,21 @@ public final class ComponentEvidence {
         "\n"
             + "## 합주 발표 시연 순서\n\n"
             + "1. S08: 별(샘플)의 날짜 칸 선택 → 작성자·악기·소리 모양 확인.\n"
-            + "2. 기록 자세히 → S07의 음 정보 탭에서 C3·시작 박·길이·세기 확인 → 선택 음 듣기.\n"
+            + "2. 기록 자세히 → S07에서 소리 덩어리 클릭 → 우측 도 C3·시작 박·길이·세기와 하단 메모 확인 → 선택 음 듣기.\n"
             + "3. 돌아가기 → 함께 듣기 → S09에서 내 소리/친구 소리/모두 비교.\n"
             + "4. 재생 중 체크박스·슬라이더로 파트 음소거/음량을 바꾸고, 반복·정지·위치 이동 시연.\n"
-            + "5. 수업 요소 안내에서 JTree 항목 선택 → JEditorPane 설명과 이벤트 연결 소개.\n\n"
+            + "5. 소리 일기장에서 작성자·기간·메모를 검색하고 선택한 날 듣기.\n"
+            + "6. 수업 요소 안내에서 JTree 항목 선택 → JEditorPane 설명과 이벤트 연결 소개.\n\n"
             + "추가 캡처: [친구 기록](S07-friend.png), [실시간 합주](S09-playing.png), [개별 음"
             + " 정보](S09-part-detail.png), [JTree 수업 안내](S13-components.png).\n");
+    text.append(
+        "\n"
+            + "## 지원 API와 배치 (Swing 컴포넌트와 구분)\n\n"
+            + "Graphics2D·AffineTransform: 소리 덩어리/글자/일기 그림 렌더링. BorderLayout·GridLayout·BoxLayout:"
+            + " 화면 배치. AbstractTableModel·DefaultTreeModel·ListModel·TableRowSorter: 데이터와 정렬."
+            + " UndoManager: 실행 취소. SwingWorker: 파일 작업과 화면 응답. PrinterJob: 인쇄. javax.swing.Timer:"
+            + " 재생 위치와 음의 시각 피드백. InputMap/ActionMap: 키보드 접근.\n\n"
+            + "주요 페이지의 UX 선택 이유와 행동→이벤트→피드백 연결은 [UX 검토](UX-REVIEW.md)를 함께 보세요.\n");
     for (Snapshot snapshot : snapshots.values()) {
       text.append("\n## ")
           .append(snapshot.id())

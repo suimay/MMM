@@ -203,7 +203,58 @@ public final class GuiFlowTest {
       edt(
           () -> {
             check(app.isShowing(), "real JFrame visible");
+            ProloguePanel prologue = find(app.getContentPane(), ProloguePanel.class);
+            check(
+                prologue.piano.pitch(3) == 65
+                    && prologue.piano.pitch(6) == 71
+                    && prologue.piano.pitch(7) == 72,
+                "cover keyboard is do re mi fa sol la si do");
+            prologue.select(2);
+            prologue.pitch.setValue(72);
+            prologue.duration.setValue(8);
+            check(
+                prologue.parts().get(2).phrase().notes().get(0).pitch() == 72
+                    && prologue.parts().get(2).phrase().notes().get(0).duration() == 960,
+                "logo height and width change actual MIDI pitch and duration");
+            prologue.playSequence();
+            check(app.midi.length() == 1920, "three logo sounds play consecutively");
+            app.stopSound();
+            prologue.playSequence();
+            prologue.pitch.setValue(71);
+            check(!app.midi.playing(), "changing logo shape stops stale audio sequence");
+            prologue.playSequence();
+            key(prologue.piano, KeyEvent.VK_A, 'a', true);
+            check(!app.midi.playing(), "cover keyboard stops sequence before live playing");
+            key(prologue.piano, KeyEvent.VK_A, 'a', false);
+            prologue.select(0);
+            prologue.duration.setValue(8);
+            prologue.select(2);
+            double cell = Math.min(240, prologue.logo.getWidth() / 3.0),
+                left = (prologue.logo.getWidth() - 3 * cell) / 2;
+            MouseEvent logoClick =
+                new MouseEvent(
+                    prologue.logo,
+                    MouseEvent.MOUSE_PRESSED,
+                    System.currentTimeMillis(),
+                    0,
+                    (int) (left + cell - 20),
+                    prologue.logo.getHeight() - 70,
+                    1,
+                    false,
+                    MouseEvent.BUTTON1);
+            for (MouseListener l : prologue.logo.getMouseListeners()) l.mousePressed(logoClick);
+            check(prologue.pitch.getValue() == 60, "logo hit areas follow centered letter layout");
+            app.stopSound();
+            prologue.select(0);
+            prologue.duration.setValue(4);
+            prologue.select(2);
+            prologue.pitch.setValue(72);
             capture("S01-start");
+            app.setSize(1060, 780);
+            app.validate();
+            capture("S01-minimum");
+            app.setSize(1180, 850);
+            app.validate();
             check(app.midi.ready(), "real MIDI synthesizer and sequencer opened");
           });
       service.login("demo", "demo1234".toCharArray());
@@ -223,8 +274,26 @@ public final class GuiFlowTest {
       edt(
           () -> {
             check(get("screen").equals("S05"), "S05 loaded");
+            PersonalWeekPanel personal = find(app.getContentPane(), PersonalWeekPanel.class);
+            personal.playFrom(Model.monday(day).plusDays(2));
+            app.midi.pauseResume();
+            check(
+                app.midi.cursor() >= 2 * Model.BAR && app.midi.cursor() < 2 * Model.BAR + 120,
+                "weekday starts at selected Wednesday without Monday playback");
+            Field sequenceField = MidiEngine.class.getDeclaredField("sequencer");
+            sequenceField.setAccessible(true);
+            check(
+                ((javax.sound.midi.Sequencer) sequenceField.get(app.midi)).getLoopStartPoint()
+                    == 2 * Model.BAR,
+                "repeat starts at selected weekday");
+            app.stopSound();
+            personal.playFrom(day.plusDays(1));
+            check(app.midi.length() == 0, "future weekday cannot play");
             click("오늘 편집");
             check(app.editor != null, "S06 opened");
+            check(
+                app.editor.piano.pitch(3) == 65 && app.editor.piano.pitch(6) == 71,
+                "editor also defaults to diatonic scale");
             app.validate();
             Piano piano = app.editor.piano;
             key(piano, KeyEvent.VK_A, 'a', true);
@@ -481,6 +550,18 @@ public final class GuiFlowTest {
           "D04 discard leaves saved data unchanged");
       edt(
           () -> {
+            set(
+                "current",
+                restored.songs().stream()
+                    .filter(s -> s.id().equals("first"))
+                    .findFirst()
+                    .orElseThrow());
+            app.week();
+          });
+      idle();
+      edt(() -> capture("S05-personal"));
+      edt(
+          () -> {
             call("library", new Class<?>[] {});
           });
       idle();
@@ -510,6 +591,63 @@ public final class GuiFlowTest {
             check(
                 board.inspector.noteTable.getRowCount() == 2,
                 "S08 shows friend's individual notes");
+            Phrase readonlyRecord = board.inspector.record();
+            NoteCanvas readCanvas = board.inspector.canvas;
+            java.awt.geom.Point2D center = readCanvas.noteCenter(readonlyRecord.notes().get(0));
+            MouseEvent choose =
+                new MouseEvent(
+                    readCanvas,
+                    MouseEvent.MOUSE_PRESSED,
+                    System.currentTimeMillis(),
+                    0,
+                    (int) center.getX() + 8,
+                    (int) center.getY(),
+                    1,
+                    false,
+                    MouseEvent.BUTTON1);
+            for (MouseListener l : readCanvas.getMouseListeners()) l.mousePressed(choose);
+            check(
+                readCanvas.inspected == 0 && board.inspector.listen.isEnabled(),
+                "clicking sound reveals inline note properties and enables audition");
+            check(
+                board.inspector.memo.getText().equals(readonlyRecord.memo()),
+                "memo stays visible beside sound and note properties");
+            check(
+                java.util.Arrays.stream(readCanvas.getMouseMotionListeners())
+                        .noneMatch(l -> l.getClass().getName().startsWith("mmm."))
+                    && board.inspector.record().equals(readonlyRecord),
+                "read-only sound selection cannot drag-edit friend data");
+            board.dayBar.buttons.get(1).doClick();
+            check(
+                app.midi.length() == Model.BAR
+                    && board.inspector.record().date().equals(Model.monday(day).plusDays(1)),
+                "weekday button plays that day's complete ensemble");
+            app.stopSound();
+            java.awt.Rectangle header = board.table.getTableHeader().getHeaderRect(3);
+            MouseEvent headerClick =
+                new MouseEvent(
+                    board.table.getTableHeader(),
+                    MouseEvent.MOUSE_CLICKED,
+                    System.currentTimeMillis(),
+                    0,
+                    header.x + header.width / 2,
+                    10,
+                    1,
+                    false,
+                    MouseEvent.BUTTON1);
+            for (MouseListener l : board.table.getTableHeader().getMouseListeners())
+              l.mouseClicked(headerClick);
+            check(
+                app.midi.length() == Model.BAR
+                    && board.inspector.record().date().equals(Model.monday(day).plusDays(2)),
+                "actual table weekday header starts selected daily ensemble");
+            app.stopSound();
+            board.selectRecord("star", day);
+            capture("S08-shared");
+            app.validate();
+            check(
+                board.inspector.canvas.getHeight() >= 120,
+                "compact friend preview keeps readable sound canvas through scrolling");
             board.playMemberWeek();
             check(app.midi.length() == 7 * Model.BAR, "participant row plays their seven bars");
             app.stopSound();
@@ -518,6 +656,8 @@ public final class GuiFlowTest {
             check(
                 find(app.getContentPane(), RecordInspector.class).record().author().equals("star"),
                 "detail preserves composer identity");
+            RecordInspector detailView = find(app.getContentPane(), RecordInspector.class);
+            detailView.selectNote(0);
             capture("S07-friend");
             click("돌아가기");
             check(
@@ -534,12 +674,30 @@ public final class GuiFlowTest {
             check(
                 mix.inspector.record().author().equals("star"),
                 "mixer selects attributed friend record");
-            mix.inspector.tabs.setSelectedIndex(1);
+            mix.inspector.showNotes.setSelected(true);
             mix.inspector.noteTable.setRowSelectionInterval(0, 0);
             mix.inspector.playSelected();
             check(app.midi.length() == 960, "selected friend's note audition uses actual duration");
             capture("S09-part-detail");
             mix.tabs.setSelectedIndex(0);
+            mix.whole.doClick();
+            mix.playMix();
+            app.midi.seek(50);
+            Method mixAttribution = EnsemblePanel.class.getDeclaredMethod("tick");
+            mixAttribution.setAccessible(true);
+            mixAttribution.invoke(mix);
+            check(
+                mix.inspector.canvas.playhead == -1,
+                "weekly mixer never highlights a different day's selected record");
+            app.stopSound();
+            mix.dayBar.buttons.get(2).doClick();
+            check(
+                !mix.whole.isSelected()
+                    && app.midi.length() == Model.BAR
+                    && mix.dates.getSelectedItem().equals(Model.monday(day).plusDays(2)),
+                "mixer weekday switches from whole week to exact day and plays");
+            app.stopSound();
+            mix.playDay(day);
             mix.preset(0);
             check(
                 mix.levels().get("demo") > 0 && mix.levels().get("star") == 0,
@@ -561,6 +719,53 @@ public final class GuiFlowTest {
             mixTick.invoke(mix);
             capture("S09-playing");
             app.stopSound();
+            click("소리 일기장");
+            check(get("screen").equals("S14"), "sound diary accessible from ensemble");
+            JournalPanel journal = find(app.getContentPane(), JournalPanel.class);
+            check(
+                journal.model.size() == 42,
+                "diary gathers fourteen days of all three participants");
+            for (int i = 1; i < journal.author.getItemCount(); i++)
+              if (journal.author.getItemAt(i).endsWith(" · star"))
+                journal.author.setSelectedIndex(i);
+            journal.period.setSelectedIndex(1);
+            journal.search.setText(day.toString());
+            check(
+                journal.model.size() == 1 && journal.model.get(0).author().equals("star"),
+                "diary combines author, week and text filters");
+            check(
+                journal.memoText().contains(day.toString())
+                    && journal.memoText().contains("별")
+                    && !journal.memoText().contains(day.minusDays(1).toString()),
+                "memo export follows visible filtered records");
+            journal.playSelected();
+            check(app.midi.length() == Model.BAR, "diary plays selected day's actual sound");
+            app.stopSound();
+            journal.search.setText("");
+            journal.period.setSelectedIndex(0);
+            journal.author.setSelectedIndex(0);
+            app.validate();
+            check(
+                journal.inspector.canvas.getWidth() >= 200
+                    && journal.inspector.canvas.getHeight() >= 135,
+                "diary detail preserves sound and property panel space");
+            journal.inspector.selectNote(0);
+            capture("S14-journal");
+            app.setSize(1060, 780);
+            app.validate();
+            capture("S14-minimum");
+            app.setSize(1180, 850);
+            app.validate();
+            journal.search.setText("no matching memo");
+            check(
+                journal.model.isEmpty() && !journal.inspector.listen.isEnabled(),
+                "empty diary search clears stale selection and audition");
+            journal.search.setText("");
+            journal.openRecord();
+            click("돌아가기");
+            check(
+                find(app.getContentPane(), JournalPanel.class) == journal,
+                "diary detail returns with filters intact");
             call("placeholder", new Class<?>[] {boolean.class}, true);
             check(get("screen").equals("S10"), "S10 management accessible");
             capture("S10-management");
