@@ -22,6 +22,7 @@ public final class EditorPanel extends JPanel {
   public final JTextField memo = new JTextField(20);
   private final JSpinner bpm;
   private final JComboBox<String> instrument = new JComboBox<>(MMM.INSTRUMENT_NAMES);
+  private final JButton chordFinder = Theme.button("감정으로 화음 찾기", this::findChord);
   private final JCheckBox pentatonic = new JCheckBox("5음계 · 어울리는 음만", false);
   private final JComboBox<String> mode =
       new JComboBox<>(new String[] {"단계 입력 · 1박씩", "실시간 입력 · 4박 녹음", "누른 길이대로 · 바로 입력"});
@@ -264,7 +265,8 @@ public final class EditorPanel extends JPanel {
           disclose.setText(disclose.isSelected() ? "연주 설정 ▴" : "연주 설정 ▾");
           center.revalidate();
         });
-    top.add(Theme.row(disclose, Theme.muted("4/4 · 한 마디 · 1/4박 맞춤")));
+    top.add(Theme.row(disclose, chordFinder,
+        Theme.muted("4/4 · 한 마디 · 1/4박 맞춤")));
     top.add(options);
     center.add(top, BorderLayout.NORTH);
     canvas =
@@ -634,6 +636,8 @@ public final class EditorPanel extends JPanel {
     keyboard.setVisible(!special);performanceToggle.setVisible(special);performanceToggle.setText(performanceView?"음 편집":"연주 화면");
     newTake.setVisible(true);
     pentatonic.setEnabled(!special);
+    chordFinder.setEnabled(program != Model.DRUMS);
+    chordFinder.setToolTipText(program == Model.DRUMS ? "화음은 피아노·베이스·기타에서 넣을 수 있어요." : "연구 근거를 확인하고 화음을 추가합니다.");
     ((CardLayout)pitchControls.getLayout()).show(pitchControls,program==Model.DRUMS?"drum":"pitch");
     if(pitchCaption!=null)pitchCaption.setText(program==Model.DRUMS?"타악기":"높낮이");
     ((CardLayout)stage.getLayout()).show(stage,special&&performanceView?"performance":"notes");
@@ -1030,5 +1034,29 @@ public final class EditorPanel extends JPanel {
     commitEdit();
     select(canvas.selected);
     canvas.repaint();
+  }
+
+  private void findChord() { EmotionPalette.showFor(app, this); }
+
+  public void insertChord(EmotionCatalog.Chord chord, int start, int duration) {
+    if (instrumentProgram() == Model.DRUMS)
+      throw new IllegalArgumentException("드럼에는 화음을 넣을 수 없습니다. 선율 악기를 선택하세요.");
+    List<NoteEvent> additions = chord.notes().stream()
+        .map(note -> new NoteEvent(start, duration, note, chord.velocity())).toList();
+    if (notes.size() + additions.size() > 128)
+      throw new IllegalArgumentException("한 마디에는 최대 128개 음을 넣을 수 있습니다.");
+    List<NoteEvent> candidate = new ArrayList<>(notes);
+    candidate.addAll(additions);
+    Model.validateTimeline(candidate, rests, expressions);
+    stop();
+    rememberBefore();
+    notes.addAll(additions);
+    cursor = Math.max(cursor, start + duration);
+    canvas.selectedRest = -1;
+    canvas.selected = notes.size() - additions.size();
+    select(canvas.selected);
+    commitEdit();
+    canvas.repaint();
+    status.setText(chord.symbol() + " 화음을 넣었어요. 들어보고 다듬거나 실행 취소할 수 있어요.");
   }
 }

@@ -1,0 +1,10 @@
+id	source_id	chord_quality	measure	mean	sd	scale_min	scale_max	aggregation	locator
+le2016a_major_happiness	LE2016A	major	happiness_joy	3.36	0.81	1	5	timbres=piano,strings;inversions=root_position,first_inversion,second_inversion	Results: Chord type; happiness/joy
+le2016a_major_valence	LE2016A	major	valence	4.04	0.61	1	5	timbres=piano,strings;inversions=root_position,first_inversion,second_inversion	Results: Chord type; valence
+le2016a_minor_sadness	LE2016A	minor	melancholy_sadness	3.44	0.77	1	5	timbres=piano,strings;inversions=root_position,first_inversion,second_inversion	Results: Chord type; melancholy/sadness
+le2016a_minor_nostalgia	LE2016A	minor	nostalgia_longing	2.90	0.77	1	5	timbres=piano,strings;inversions=root_position,first_inversion,second_inversion	Results: Chord type; nostalgia/longing
+le2016a_major7_nostalgia	LE2016A	major_seventh	nostalgia_longing	2.89	0.82	1	5	timbres=piano,strings;inversions=root_position,third_inversion	Results: Chord type; nostalgia/longing
+le2016a_minor7_nostalgia	LE2016A	minor_seventh	nostalgia_longing	2.84	0.77	1	5	timbres=piano,strings;inversions=root_position,third_inversion	Results: Chord type; nostalgia/longing
+le2016a_augmented_tension	LE2016A	augmented	tension	3.99	0.80	1	5	timbres=piano,strings;inversions=root_position	Results: Chord type; tension
+le2016a_diminished_tension	LE2016A	diminished	tension	3.79	0.78	1	5	timbres=piano,strings;inversions=root_position	Results: Chord type; tension
+le2016a_dominant7_tension	LE2016A	dominant_seventh	tension	3.46	0.61	1	5	timbres=piano,strings;inversions=root_position,third_inversion	Results: Chord type; tension

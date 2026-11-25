@@ -34,20 +34,19 @@ foreach ($name in @('classes', 'test-classes')) {
     if (Test-Path -LiteralPath $folder) { Remove-Item -LiteralPath $folder -Recurse -Force }
     New-Item -ItemType Directory -Path $folder -Force | Out-Null
 }
-$sources = @(Get-ChildItem -LiteralPath 'src\main\java' -Recurse -Filter '*.java' | ForEach-Object { $_.FullName })
+$sources = @(Get-ChildItem -LiteralPath 'src\main\java','..\shared\src\main\java' -Recurse -Filter '*.java' | ForEach-Object { $_.FullName })
 Invoke-Jdk 'javac' (@('--release', '21', '-encoding', 'UTF-8', '-d', 'build/classes') + $sources)
 Copy-Item -Path 'resources\*' -Destination 'build\classes' -Recurse -Force
 Invoke-Jdk 'jar' @('--create', '--file', 'build/MMM.jar', '--main-class', 'mmm.MMM', '-C', 'build/classes', '.')
 $tests = @(Get-ChildItem -LiteralPath 'src\test\java' -Recurse -Filter '*.java' | ForEach-Object { $_.FullName })
 Invoke-Jdk 'javac' (@('--release', '21', '-encoding', 'UTF-8', '-cp', 'build/classes', '-d', 'build/test-classes') + $tests)
-foreach ($test in @('ModelRepositoryTest', 'FeatureTest', 'SoundShapeTest', 'EnsembleDataTest', 'ExpressionTest', 'WireJsonTest', 'PianoTest', 'PitchRangeTest', 'InstrumentSoundTest', 'StringInstrumentTest')) {
-    Invoke-Jdk 'java' @('-ea', '-Djava.awt.headless=true', '-cp', 'build/classes;build/test-classes', "mmm.$test")
-}
+Invoke-Jdk 'java' @('-ea', '-Djava.awt.headless=true', '-cp', 'build/classes;build/test-classes', 'mmm.ClientRegressionChecks')
 if ($GuiTests) {
     Invoke-Jdk 'java' @('-ea', '-cp', 'build/classes;build/test-classes', 'mmm.GuiFlowTest')
     Invoke-Jdk 'java' @('-ea', '-cp', 'build/classes;build/test-classes', 'mmm.ExpressionGuiTest')
     Invoke-Jdk 'java' @('-ea', '-cp', 'build/classes;build/test-classes', 'mmm.PreviewGuiTest')
     Invoke-Jdk 'java' @('-ea', '-cp', 'build/classes;build/test-classes', 'mmm.InstrumentGuiTest')
     Invoke-Jdk 'java' @('-ea', '-cp', 'build/classes;build/test-classes', 'mmm.LiveSoundGuiTest')
+    Invoke-Jdk 'java' @('-ea', '-cp', 'build/classes;build/test-classes', 'mmm.EmotionGuiTest')
 }
 Write-Output "Built $buildRoot\MMM.jar (Java 21 target)."

@@ -1,0 +1,11 @@
+id	label_ko	label_en	dimension	definition_ko	availability
+happiness_joy	기쁨	Happiness / joy	happiness_joy	화음에서 지각되는 행복하거나 기쁜 인상. 청취자의 실제 기분 변화와 구분한다.	candidate
+melancholy_sadness	슬픔	Melancholy / sadness	melancholy_sadness	화음이 표현하는 것으로 지각되는 우수나 슬픔. 청취자의 실제 기분 변화와 구분한다.	candidate
+nostalgia_longing	그리움	Nostalgia / longing	nostalgia_longing	화음에서 지각되는 향수·아련함·그리움의 인상. 구체적인 개인의 기억이 떠올랐음을 뜻하지 않는다.	candidate
+tension	긴장감	Tension	tension	화음이 편안하고 이완된 느낌보다 긴장되고 동요하는 느낌을 얼마나 전달하는지 나타낸다.	candidate
+positive_valence	긍정적인	Positive valence	valence	화음에서 지각되는 긍정적인 정서 방향. 좋아하는 정도나 행복의 강도와 동일하지 않다.	candidate
+tenderness	다정함	Tenderness	tenderness	다정하고 애정 어린 인상. 문헌에서 측정됐지만 이번 초기 연결표에는 적용하지 않고 별도 청취 검증을 기다린다.	pending_validation
+dreaminess	몽환적	Dreaminess	unmeasured	꿈같거나 현실에서 멀어진 듯한 인상. 이번 근거표의 연구에서 직접 검증한 화음 태그가 아니다.	pending_validation
+romance	낭만적	Romance	unmeasured	낭만적이거나 로맨틱한 인상. 이번 근거표의 연구에서 직접 검증한 화음 태그가 아니다.	pending_validation
+hopefulness	희망적인	Hopefulness	unmeasured	앞으로 좋은 일이 있을 것 같은 인상. 이번 근거표의 연구에서 직접 검증한 화음 태그가 아니다.	pending_validation
+fear	공포	Fear	unmeasured	두려움이나 공포의 인상. 긴장감·낮은 긍정성만으로 공포를 확인했다고 판단하지 않는다.	pending_validation

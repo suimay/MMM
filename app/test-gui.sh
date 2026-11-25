@@ -8,4 +8,5 @@ if [ ! -x "$MMM_JAVA" ]; then MMM_JAVA=$(find "$PWD/tools" -path '*/Contents/Hom
 "$MMM_JAVA" -cp build/classes:build/test-classes mmm.ExpressionGuiTest
 "$MMM_JAVA" -cp build/classes:build/test-classes mmm.PreviewGuiTest
 "$MMM_JAVA" -cp build/classes:build/test-classes mmm.InstrumentGuiTest
-exec "$MMM_JAVA" -cp build/classes:build/test-classes mmm.LiveSoundGuiTest
+"$MMM_JAVA" -cp build/classes:build/test-classes mmm.LiveSoundGuiTest
+exec "$MMM_JAVA" -cp build/classes:build/test-classes mmm.EmotionGuiTest

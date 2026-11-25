@@ -1409,6 +1409,10 @@ public final class MMM extends JFrame {
   }
 
   public static void main(String[] args) throws Exception {
+    if (args.length == 1 && args[0].equals("--emotion-palette")) {
+      EmotionPalette.main(new String[0]);
+      return;
+    }
     Path root = Path.of(System.getProperty("user.home"), ".mmm");
     LocalDate demoDate = null;
     String server=System.getenv("MMM_SERVER_URL");

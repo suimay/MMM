@@ -77,3 +77,18 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build-m2.ps1 -GuiTests
 ## 디자인 방향
 
 현재 화면은 기능 검증용 구현입니다. 기존 색상·물방울·로고·배치는 유지 조건이 아니며, [최신 디자인 지침](app/docs/DESIGN.md)에 따라 재탐색합니다.
+
+## 감정·화음 탐색
+
+편집기의 ‘감정으로 화음 찾기’에서 문헌 근거를 확인하고 피아노로 미리 들은 뒤 현재 선율 악기에 화음을 넣습니다. 기존 쉼·표현과 겹치지 않는 구간에 추가하며 한 번에 실행 취소할 수 있습니다. 드럼은 화음 삽입 대상에서 제외합니다. 문헌 후보는 개인 감정 진단이나 앱 청취 검증 결과가 아닙니다.
+
+[연구 근거와 사용법](app/docs/emotion/README.md)
+
+## 모듈과 통합 검사
+
+- shared: 음악 모델·HTTP 계약·JSON·비밀번호 처리의 공통 소스.
+- app: Swing UI, 로컬/원격 저장 어댑터, 악기·재생·감정 화음 탐색.
+- server: 권한·버전·오늘 날짜 검사와 PostgreSQL 트랜잭션.
+- devserver: 로컬 개발용 PostgreSQL 실행기.
+
+Java 21에서 mvn verify 한 번으로 클라이언트 회귀 검사와 서버 API/DB 검사를 실행합니다. 실제 데스크톱의 원격 Swing 검사는 -Dmmm.gui.tests=true, 전체 클라이언트 화면 검사는 app/test-gui.sh를 사용합니다. GitHub Actions도 mvn verify를 실행합니다. Mac 패키지는 app/package-mac.sh로 일반 모드 2.6.0을 만들며 시연은 app/demo.command로 별도 실행합니다.

@@ -3,7 +3,14 @@ set -eu
 cd "$(dirname "$0")"
 if [ -n "${JAVA_HOME:-}" ] && [ -x "$JAVA_HOME/bin/javac" ]; then
   MMM_JDK="$JAVA_HOME"
+elif [ "$(uname -s)" = Darwin ] && [ -x /usr/libexec/java_home ]; then
+  MMM_JDK=$(/usr/libexec/java_home -v 21+ 2>/dev/null || true)
+elif command -v javac >/dev/null 2>&1; then
+  MMM_JDK=$(dirname "$(dirname "$(command -v javac)")")
 else
+  MMM_JDK=""
+fi
+if [ -z "${MMM_JDK:-}" ] && [ -d "$PWD/tools" ]; then
   MMM_JDK=$(find "$PWD/tools" -path '*/Contents/Home/bin/javac' -print -quit 2>/dev/null | sed 's|/bin/javac$||')
 fi
 if [ -z "${MMM_JDK:-}" ]; then
@@ -11,22 +18,13 @@ if [ -z "${MMM_JDK:-}" ]; then
   exit 1
 fi
 mkdir -p build/classes build/test-classes
-find src/main/java -name '*.java' > build/sources.txt
+find src/main/java ../shared/src/main/java -name '*.java' > build/sources.txt
 "$MMM_JDK/bin/javac" --release 21 -encoding UTF-8 -d build/classes @build/sources.txt
 if [ -d resources ]; then cp -R resources/. build/classes/; fi
 "$MMM_JDK/bin/jar" --create --file build/MMM.jar --main-class mmm.MMM -C build/classes .
 find src/test/java -name '*.java' > build/test-sources.txt
 if [ -s build/test-sources.txt ]; then
   "$MMM_JDK/bin/javac" --release 21 -encoding UTF-8 -cp build/classes -d build/test-classes @build/test-sources.txt
-  "$MMM_JDK/bin/java" -ea -Djava.awt.headless=true -cp build/classes:build/test-classes mmm.ModelRepositoryTest
-  "$MMM_JDK/bin/java" -ea -Djava.awt.headless=true -cp build/classes:build/test-classes mmm.FeatureTest
-  "$MMM_JDK/bin/java" -ea -Djava.awt.headless=true -cp build/classes:build/test-classes mmm.SoundShapeTest
-  "$MMM_JDK/bin/java" -ea -Djava.awt.headless=true -cp build/classes:build/test-classes mmm.EnsembleDataTest
-  "$MMM_JDK/bin/java" -ea -Djava.awt.headless=true -cp build/classes:build/test-classes mmm.ExpressionTest
-  "$MMM_JDK/bin/java" -ea -Djava.awt.headless=true -cp build/classes:build/test-classes mmm.WireJsonTest
-  "$MMM_JDK/bin/java" -ea -Djava.awt.headless=true -cp build/classes:build/test-classes mmm.PianoTest
-  "$MMM_JDK/bin/java" -ea -Djava.awt.headless=true -cp build/classes:build/test-classes mmm.PitchRangeTest
-  "$MMM_JDK/bin/java" -ea -Djava.awt.headless=true -cp build/classes:build/test-classes mmm.InstrumentSoundTest
-  "$MMM_JDK/bin/java" -ea -Djava.awt.headless=true -cp build/classes:build/test-classes mmm.StringInstrumentTest
+  "$MMM_JDK/bin/java" -ea -Djava.awt.headless=true -cp build/classes:build/test-classes mmm.ClientRegressionChecks
 fi
 printf 'Built %s/build/MMM.jar\n' "$PWD"

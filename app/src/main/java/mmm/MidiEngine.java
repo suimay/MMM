@@ -174,6 +174,10 @@ public final class MidiEngine implements AutoCloseable {
       sequencer.setLoopCount(enabled ? Sequencer.LOOP_CONTINUOUSLY : 0);
   }
 
+  public synchronized boolean looping() {
+    return looping;
+  }
+
   public synchronized boolean playing() {
     return loaded && sequencer != null && sequencer.isRunning();
   }

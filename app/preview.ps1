@@ -1,6 +1,7 @@
 ﻿param([switch]$BuildOnly,[string]$DataDirectory)
 $ErrorActionPreference = 'Stop'
 $appRoot = $PSScriptRoot
+$repoRoot = Split-Path -Parent $appRoot
 $buildRoot = [IO.Path]::GetFullPath((Join-Path $appRoot 'build\development-preview'))
 [IO.Directory]::CreateDirectory($buildRoot) | Out-Null
 $log = Join-Path $buildRoot 'build.log'
@@ -44,7 +45,7 @@ try {
         if (Test-Path -LiteralPath $resolved) { Remove-Item -LiteralPath $resolved -Recurse -Force }
         [IO.Directory]::CreateDirectory($classes) | Out-Null
         $sourceRoot=Join-Path $appRoot 'src\main\java'
-        $sources=@(Get-ChildItem -LiteralPath $sourceRoot -Recurse -Filter '*.java' | ForEach-Object {$_.FullName})
+        $sources=@(Get-ChildItem -LiteralPath $sourceRoot,(Join-Path $repoRoot 'shared\src\main\java') -Recurse -Filter '*.java' | ForEach-Object {$_.FullName})
         $compiled=$false
         $compilerExit=Invoke-Compiler 'javac.exe' (@('--release','21','-encoding','UTF-8','-d',$classes)+$sources)
         if ($compilerExit -eq 0) {

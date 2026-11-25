@@ -17,3 +17,5 @@
 /downloads/*.jar
 /downloads/*.zip
 /downloads/*-SHA256.txt
+
+!/.github/

@@ -85,6 +85,22 @@ class RemoteIntegrationTest {
   @BeforeEach void reset(){db.execute("TRUNCATE app_users CASCADE");clock.instant=NOON;}
   @AfterAll void close() throws Exception {POSTGRES.close();}
 
+  @Test void catalogChordPreservesRestsArticulationAndExpressionOverHttp() throws Exception {
+    MusicService writer=client("chordwriter"),reader=client("chordreader");
+    Song song=writer.create("화음 통합",true,90,24);
+    reader.join(writer.invite(song.id()));
+    List<NoteEvent> notes=new ArrayList<>();
+    notes.add(new NoteEvent(0,480,72,80,Articulation.STACCATO));
+    EmotionCatalog.Chord chord=EmotionCatalog.load().chord("c_major");
+    chord.notes().forEach(pitch->notes.add(new NoteEvent(480,960,pitch,chord.velocity())));
+    Phrase value=new Phrase(song.id(),writer.user(),DAY,0,90,24,"화음과 쉼",notes,
+        List.of(new RestEvent(1440,480)),
+        List.of(new ExpressionRange(0,1440,ExpressionKind.CRESCENDO,40,100)));
+    Phrase saved=writer.save(value);
+    assertEquals(value.versioned(1),saved);
+    assertEquals(saved,reader.phrases(song.id()).getFirst());
+  }
+
   @Test void accountsSessionsAndPublicDtos() throws Exception {
     String token=account("owner");
     assertEquals(409,call("POST","/auth/signup",new Signup("owner","중복","test1234"),null).status());
