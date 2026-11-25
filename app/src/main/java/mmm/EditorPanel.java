@@ -200,7 +200,8 @@ public final class EditorPanel extends JPanel {
           disclose.setText(disclose.isSelected() ? "연주 설정 ▴" : "연주 설정 ▾");
           center.revalidate();
         });
-    top.add(Theme.row(disclose, Theme.muted("4/4 · 한 마디 · 1/4박 맞춤")));
+    top.add(Theme.row(disclose, Theme.button("감정으로 화음 찾기", () -> EmotionPalette.showFor(app, this)),
+        Theme.muted("4/4 · 한 마디 · 1/4박 맞춤")));
     top.add(options);
     center.add(top, BorderLayout.NORTH);
     canvas =
@@ -660,5 +661,21 @@ public final class EditorPanel extends JPanel {
         MMM.PROGRAMS[instrument.getSelectedIndex()],
         memo.getText(),
         notes);
+  }
+
+  public void insertChord(EmotionCatalog.Chord chord, int start, int duration) {
+    List<NoteEvent> additions = chord.notes().stream()
+        .map(note -> new NoteEvent(start, duration, note, chord.velocity())).toList();
+    if (notes.size() + additions.size() > 128)
+      throw new IllegalArgumentException("한 마디에는 최대 128개 음을 넣을 수 있습니다.");
+    stop();
+    rememberBefore();
+    notes.addAll(additions);
+    cursor = Math.max(cursor, start + duration);
+    canvas.selected = notes.size() - additions.size();
+    select(canvas.selected);
+    commitEdit();
+    canvas.repaint();
+    status.setText(chord.symbol() + " 화음을 넣었어요. 들어보고 다듬거나 실행 취소할 수 있어요.");
   }
 }
