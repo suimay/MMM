@@ -96,6 +96,16 @@ public final class GuiFlowTest {
     return found;
   }
 
+  static <T> T find(Container root, Class<T> type) {
+    if (type.isInstance(root)) return type.cast(root);
+    for (Component c : root.getComponents())
+      if (c instanceof Container container) {
+        T found = find(container, type);
+        if (found != null) return found;
+      }
+    return null;
+  }
+
   static void click(String text) throws Exception {
     AbstractButton b = button(app.getContentPane(), text);
     if (b == null) throw new AssertionError("Missing button " + text);
@@ -111,12 +121,30 @@ public final class GuiFlowTest {
               AbstractButton b = button(d, choice.equals("OK") ? "확인" : choice);
               if (b != null) {
                 timer.stop();
+                try {
+                  captureDialog(d);
+                } catch (Exception error) {
+                  throw new RuntimeException(error);
+                }
                 b.doClick();
                 return;
               }
             }
         });
     timer.start();
+  }
+
+  static void captureDialog(JDialog dialog) throws Exception {
+    String title = dialog.getTitle();
+    if (title == null || !title.matches("D0[1-5].*")) return;
+    String id = title.substring(0, 3);
+    BufferedImage picture =
+        new BufferedImage(dialog.getWidth(), dialog.getHeight(), BufferedImage.TYPE_INT_RGB);
+    Graphics2D graphics = picture.createGraphics();
+    dialog.paint(graphics);
+    graphics.dispose();
+    ImageIO.write(picture, "png", Path.of("docs", id + "-dialog.png").toFile());
+    ComponentEvidence.record(id, id + "-dialog.png", dialog);
   }
 
   static void capture(String name) throws Exception {
@@ -127,6 +155,7 @@ public final class GuiFlowTest {
     app.paint(g);
     g.dispose();
     ImageIO.write(image, "png", Path.of("docs", name + ".png").toFile());
+    ComponentEvidence.record(name.substring(0, 3), name + ".png", app);
   }
 
   static void key(Piano piano, int code, char value, boolean down) {
@@ -459,6 +488,10 @@ public final class GuiFlowTest {
           () -> {
             check(get("screen").equals("S04"), "S04 library accessible");
             capture("S04-library");
+            dialog("취소");
+            call("createDialog", new Class<?>[] {});
+            dialog("취소");
+            call("inviteDialog", new Class<?>[] {Song.class}, (Object) null);
             set(
                 "current",
                 restored.songs().stream().filter(s -> s.shared()).findFirst().orElseThrow());
@@ -469,10 +502,64 @@ public final class GuiFlowTest {
           () -> {
             check(get("screen").equals("S08"), "S08 shared week accessible");
             capture("S08-shared");
-            click("오늘 공동 합주");
+            SharedWeekPanel board = find(app.getContentPane(), SharedWeekPanel.class);
+            board.selectRecord("star", day);
+            check(
+                board.inspector.record().author().equals("star"),
+                "S08 selected friend's exact record");
+            check(
+                board.inspector.noteTable.getRowCount() == 2,
+                "S08 shows friend's individual notes");
+            board.playMemberWeek();
+            check(app.midi.length() == 7 * Model.BAR, "participant row plays their seven bars");
+            app.stopSound();
+            board.openDetail();
+            check(get("screen").equals("S07"), "friend record opens read-only S07");
+            check(
+                find(app.getContentPane(), RecordInspector.class).record().author().equals("star"),
+                "detail preserves composer identity");
+            capture("S07-friend");
+            click("돌아가기");
+            check(
+                find(app.getContentPane(), SharedWeekPanel.class) == board,
+                "friend detail returns to same shared board");
+            click("함께 듣기");
             check(get("screen").equals("S09"), "S09 ensemble accessible");
             capture("S09-ensemble");
+            EnsemblePanel mix = find(app.getContentPane(), EnsemblePanel.class);
+            for (int i = 0; i < mix.list.getModel().getSize(); i++)
+              if (mix.list.getModel().getElementAt(i).id().equals("star"))
+                mix.list.setSelectedIndex(i);
+            mix.tabs.setSelectedIndex(1);
+            check(
+                mix.inspector.record().author().equals("star"),
+                "mixer selects attributed friend record");
+            mix.inspector.tabs.setSelectedIndex(1);
+            mix.inspector.noteTable.setRowSelectionInterval(0, 0);
+            mix.inspector.playSelected();
+            check(app.midi.length() == 960, "selected friend's note audition uses actual duration");
+            capture("S09-part-detail");
+            mix.tabs.setSelectedIndex(0);
+            mix.preset(0);
+            check(
+                mix.levels().get("demo") > 0 && mix.levels().get("star") == 0,
+                "solo my part affects mix levels");
+            mix.playMix();
+            java.lang.reflect.Field synthField = MidiEngine.class.getDeclaredField("synth");
+            synthField.setAccessible(true);
+            javax.sound.midi.Synthesizer synth =
+                (javax.sound.midi.Synthesizer) synthField.get(app.midi);
+            mix.preset(1);
+            check(
+                synth.getChannels()[0].getController(7) == 0,
+                "live mixer mute changes actual MIDI controller");
+            mix.preset(2);
             click("모두 재생");
+            app.midi.seek(600);
+            java.lang.reflect.Method mixTick = EnsemblePanel.class.getDeclaredMethod("tick");
+            mixTick.setAccessible(true);
+            mixTick.invoke(mix);
+            capture("S09-playing");
             app.stopSound();
             call("placeholder", new Class<?>[] {boolean.class}, true);
             check(get("screen").equals("S10"), "S10 management accessible");
@@ -486,12 +573,19 @@ public final class GuiFlowTest {
             capture("S11-score");
             call("settings", new Class<?>[] {});
             check(get("screen").equals("S12"), "S12 settings accessible");
+            capture("S12-settings");
             call("help", new Class<?>[] {});
             check(get("screen").equals("S13"), "S13 help accessible");
+            capture("S13-help");
+            JTabbedPane helpTabs = find(app.getContentPane(), JTabbedPane.class);
+            helpTabs.setSelectedIndex(helpTabs.getTabCount() - 1);
+            capture("S13-components");
             call("login", new Class<?>[] {String.class}, "demo");
             check(get("screen").equals("S02"), "S02 login accessible");
+            capture("S02-login");
             call("signup", new Class<?>[] {});
             check(get("screen").equals("S03"), "S03 signup accessible");
+            capture("S03-signup");
             app.midi.close();
             app.dispose();
           });
