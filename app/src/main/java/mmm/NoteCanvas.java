@@ -15,6 +15,7 @@ public final class NoteCanvas extends JPanel {
   private final IntConsumer select;
   public Runnable gestureFinished = () -> {};
   public int selected = -1;
+  public int inspected = -1;
   public long playhead = -1;
   private int dragX, dragY;
   private NoteEvent original;
@@ -205,7 +206,7 @@ public final class NoteCanvas extends JPanel {
       Shape shape = noteShape(n);
       boolean picked = i == selected && editable;
       boolean sounding = playhead >= n.start() && playhead < n.start() + n.duration();
-      SoundShape.paint(g, shape, picked, sounding, !editable);
+      SoundShape.paint(g, shape, picked || i == inspected, sounding, !editable);
       if (picked) {
         Point2D tip = tailPoint(n);
         g.setColor(Theme.SURFACE);

@@ -127,6 +127,17 @@ public final class EditorPanel extends JPanel {
     bpm = new JSpinner(new SpinnerNumberModel(base.bpm(), 40, 200, 1));
     bpm.setEnabled(!song.shared());
     instrument.setSelectedIndex(MMM.instrumentIndex(base.instrument()));
+    instrument.setRenderer(
+        (list, value, index, selected, focus) -> {
+          int i = index < 0 ? instrument.getSelectedIndex() : index;
+          JLabel label =
+              new JLabel(
+                  value, ArtAssets.instrument(MMM.PROGRAMS[Math.max(0, i)], 24), JLabel.LEFT);
+          label.setOpaque(true);
+          label.setBackground(selected ? Theme.WASH : Theme.SURFACE);
+          label.setBorder(BorderFactory.createEmptyBorder(2, 4, 2, 4));
+          return label;
+        });
     memo.setText(base.memo());
     JPanel p = new JPanel(new BorderLayout(18, 16));
     p.setBorder(BorderFactory.createEmptyBorder(24, 30, 20, 30));
