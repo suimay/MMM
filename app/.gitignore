@@ -1,0 +1,12 @@
+tools/
+build/
+*.log
+.DS_Store
+hs_err_pid*.log
+dist/
+docs/reference.png
+docs/VERIFICATION-v1.md
+*.properties
+*.properties.*
+.env
+.env.*
